@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
+    --font-body: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    --bg: 6 4 2;
+    --fg: 247 245 242;
+    --accent: 255 111 60;
+    --accent-soft: 224 36 88;
+    --line: 255 255 255 / 0.08;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-50 font-body antialiased;
+    font-feature-settings: "ss01", "ss02", "cv11";
+    background-image:
+      radial-gradient(120% 60% at 0% 0%, rgba(255, 111, 60, 0.18), transparent 55%),
+      radial-gradient(100% 80% at 100% 100%, rgba(224, 36, 88, 0.16), transparent 60%),
+      linear-gradient(180deg, #0a0805 0%, #050402 100%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(255, 111, 60, 0.35);
+    color: #fff;
+  }
+
+  /* Subtle film grain everywhere */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.45;
+    mix-blend-mode: overlay;
+    z-index: 0;
+  }
+
+  /* Content sits above the grain layer */
+  main, section, article, header, footer, nav {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-glass;
+  }
+  .glass-soft {
+    @apply rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-md;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.18em] text-ink-100;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-ink-50 transition hover:bg-white/10 hover:border-white/20 active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ember-500 px-5 py-3 text-sm font-semibold text-ink-950 shadow-card transition hover:brightness-110 active:scale-[0.98];
+  }
+  .btn-rose {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-card transition hover:brightness-110 active:scale-[0.98];
+  }
+  .input {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-base text-ink-50 placeholder:text-ink-300/60 focus:border-ember-400/60 focus:outline-none focus:ring-2 focus:ring-ember-400/30;
+  }
+  .label {
+    @apply text-xs uppercase tracking-[0.18em] text-ink-200/80;
+  }
+  .display {
+    @apply font-display tracking-tight;
+  }
+}
+
+/* The Telegram Login Widget injects an iframe -- we round its corners to fit
+ * the design language and dim its native blue with a multiply blend. */
+.tg-login iframe {
+  border-radius: 9999px !important;
+  box-shadow: 0 12px 40px -12px rgba(255, 111, 60, 0.5);
+}
