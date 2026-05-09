@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { TelegramLogin } from "@/components/TelegramLogin";
+
 import { useAuth } from "@/components/providers/AuthProvider";
 
 const STATS = [
@@ -25,7 +25,7 @@ function LandingContent() {
   const { me } = useAuth();
   const params = useSearchParams();
   const ref = params?.get("ref");
-  const refId = ref ? Number(ref) || null : null;
+  const refQs = ref ? `?ref=${encodeURIComponent(ref)}` : "";
 
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -38,38 +38,33 @@ function LandingContent() {
 
   return (
     <main className="relative min-h-dvh overflow-x-hidden">
-      {/* Aurora background */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10 bg-ember-gradient"
       />
 
-      {/* Top bar */}
       <header className="sticky top-0 z-40 mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
         <div className="display text-2xl">
           MATCH<span className="text-ember-400"> 57</span>
         </div>
         <nav className="flex items-center gap-2">
-          {me?.registered ? (
+          {me ? (
             <Link href="/swipe" className="btn-primary">
               Открыть приложение
             </Link>
-          ) : me ? (
-            <Link href="/register" className="btn-primary">
-              Заполнить анкету
-            </Link>
           ) : (
-            <a
-              href="#login"
-              className="btn-ghost"
-            >
-              Войти
-            </a>
+            <>
+              <Link href="/login" className="btn-ghost">
+                Войти
+              </Link>
+              <Link href={`/register${refQs}`} className="btn-primary">
+                Регистрация
+              </Link>
+            </>
           )}
         </nav>
       </header>
 
-      {/* HERO */}
       <section
         ref={heroRef}
         className="relative mx-auto flex min-h-[88dvh] max-w-6xl flex-col items-center justify-center px-5 pb-20 pt-10 sm:px-8"
@@ -81,38 +76,37 @@ function LandingContent() {
           <span className="pill mb-6 mx-auto">est. 1957 · кружки и анкеты</span>
           <h1 className="display text-balance text-5xl leading-[0.95] sm:text-7xl md:text-[7.5rem]">
             Найди <em className="not-italic text-ember-400">своих</em>
-            <br />
-            в 57-й.
+            <br />в 57-й.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-ink-100/80 sm:text-xl">
             Все, кого ты раньше встречал у вахты или в столовой —
-            теперь в одном свайп-стеке. Тот же бот, та же база, новый дом.
+            теперь в одном свайп-стеке. Свой сайт, встроенный мессенджер,
+            никакой привязки к Telegram.
           </p>
 
           <div id="login" className="mt-10 flex flex-col items-center gap-3">
             {me ? (
-              <Link
-                href={me.registered ? "/swipe" : "/register"}
-                className="btn-primary text-base"
-              >
-                {me.registered ? "Свайпать →" : "Заполнить анкету →"}
+              <Link href="/swipe" className="btn-primary text-base">
+                Свайпать →
               </Link>
             ) : (
-              <>
-                <TelegramLogin referrerId={refId} />
-                <p className="max-w-xs text-xs text-ink-200/60">
-                  Авторизация через Telegram — без паролей и регистраций.
-                  Используется тот же аккаунт, что и в боте.
-                </p>
-              </>
+              <div className="flex flex-col items-center gap-3 sm:flex-row">
+                <Link
+                  href={`/register${refQs}`}
+                  className="btn-primary text-base"
+                >
+                  Зарегистрироваться
+                </Link>
+                <Link href="/login" className="btn-ghost text-base">
+                  Войти по email
+                </Link>
+              </div>
             )}
           </div>
         </motion.div>
 
-        {/* Floating cards */}
         <FloatingCards />
 
-        {/* Scroll cue */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -123,7 +117,6 @@ function LandingContent() {
         </motion.div>
       </section>
 
-      {/* Stats strip */}
       <section className="mx-auto max-w-6xl px-5 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-3">
           {STATS.map((s, i) => (
@@ -143,7 +136,6 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* How it works */}
       <section className="mx-auto max-w-6xl px-5 py-24 sm:px-8 sm:py-32">
         <h2 className="display mb-12 text-balance text-4xl sm:text-6xl">
           Три экрана —<br />
@@ -153,18 +145,18 @@ function LandingContent() {
           {[
             {
               n: "01",
-              title: "Войди через Telegram",
-              text: "Один тап — и ты тот же user_id, что в боте. Все твои лайки, мэтчи и сообщения уже здесь.",
+              title: "Зарегистрируйся",
+              text: "Email + пароль. Возраст, кого ищешь, до 3 фото или видео, описание. Минимум полей — максимум знакомств.",
             },
             {
               n: "02",
-              title: "Заполни анкету",
-              text: "Возраст, кого ищешь, до 3 фото или видео, описание. То же что в боте — ровно те же поля.",
+              title: "Свайпай",
+              text: "Жест влево/вправо или клавиатура. Лайк → пуш-уведомление другому пользователю. Мэтч → чат сразу.",
             },
             {
               n: "03",
-              title: "Свайпай",
-              text: "Жест влево/вправо или клавиатура. Лайк → уведомление в Telegram. Мэтч → контакт сразу в чат.",
+              title: "Общайся",
+              text: "Встроенный мессенджер: текст, голос, видео, фото, файлы, реакции, печатает / онлайн / прочитано.",
             },
           ].map((step, i) => (
             <motion.div
@@ -183,31 +175,23 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* Disclaimer */}
       <section className="mx-auto max-w-3xl px-5 pb-24 sm:px-8">
         <Glass>
           <h3 className="display text-2xl">Серьёзно — это безопасно?</h3>
           <p className="mt-3 text-ink-100/80">
-            Авторизация через Telegram. Никаких паролей, никаких email. Бот
-            продолжает работать — все данные общие. Жалобы и баны проходят
-            через ту же админ-команду, что и в Telegram.
+            Все хранится у нас, никаких сторонних сервисов. Жалобы рассматривает
+            школьная админ-команда. Жалоба → ребан в одно действие.
           </p>
           <ul className="mt-4 space-y-1.5 text-sm text-ink-100/70">
             <li>· 14+, без скринов и пересылок</li>
             <li>· Только своя школа</li>
-            <li>· Жалоба → ребан в обоих интерфейсах одновременно</li>
+            <li>· Голос/видео хранятся локально, доступны только мэтчам</li>
           </ul>
         </Glass>
       </section>
 
       <footer className="border-t border-white/5 px-5 py-10 text-center text-xs text-ink-200/60 sm:px-8">
-        MATCH 57 · поддержка{" "}
-        <a
-          className="underline hover:text-ember-300"
-          href="https://t.me/sneakerdash_manager"
-        >
-          @sneakerdash_manager
-        </a>
+        MATCH 57 · standalone web app
       </footer>
     </main>
   );

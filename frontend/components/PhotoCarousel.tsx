@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { mediaUrl } from "@/lib/media";
 import { motion, AnimatePresence } from "framer-motion";
 
-type Photo = { type: "photo" | "video"; file_id: string };
+import type { Photo } from "@/lib/types";
+import { mediaUrl } from "@/lib/media";
 
 export function PhotoCarousel({
   photos,
@@ -26,21 +26,24 @@ export function PhotoCarousel({
     );
   }
   const photo = photos[Math.min(i, photos.length - 1)];
+  const url = mediaUrl(photo.user_id, photo.filename);
 
   return (
-    <div className={`group relative aspect-[3/4] w-full overflow-hidden ${rounded} bg-ink-900 ${className ?? ""}`}>
+    <div
+      className={`group relative aspect-[3/4] w-full overflow-hidden ${rounded} bg-ink-900 ${className ?? ""}`}
+    >
       <AnimatePresence initial={false} mode="popLayout">
         <motion.div
-          key={photo.file_id}
+          key={photo.id}
           initial={{ opacity: 0, scale: 1.04 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="absolute inset-0"
         >
-          {photo.type === "video" ? (
+          {photo.kind === "video" ? (
             <video
-              src={mediaUrl(photo.file_id)}
+              src={url}
               className="h-full w-full object-cover"
               autoPlay
               loop
@@ -50,7 +53,7 @@ export function PhotoCarousel({
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={mediaUrl(photo.file_id)}
+              src={url}
               alt=""
               draggable={false}
               className="h-full w-full select-none object-cover"
@@ -59,7 +62,6 @@ export function PhotoCarousel({
         </motion.div>
       </AnimatePresence>
 
-      {/* tap-zones */}
       {photos.length > 1 && (
         <>
           <button
@@ -80,7 +82,6 @@ export function PhotoCarousel({
             }}
             className="absolute inset-y-0 right-0 w-1/3"
           />
-          {/* segment bars */}
           <div className="pointer-events-none absolute left-2 right-2 top-2 flex gap-1.5">
             {photos.map((_, idx) => (
               <div
@@ -93,7 +94,6 @@ export function PhotoCarousel({
           </div>
         </>
       )}
-      {/* readability gradient */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
     </div>
   );

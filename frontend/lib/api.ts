@@ -1,24 +1,36 @@
 /**
- * Typed fetch client. The backend is mounted on the same origin in production
- * (via the Next.js rewrite in ``next.config.js``) and on a different port in
- * development. All requests carry the auth cookie (``credentials: include``).
+ * Typed fetch client. Backend is mounted on the same origin via the Next.js
+ * rewrite (``next.config.js``); on dev that proxy hits ``localhost:8000``.
+ * All requests carry the auth cookie (``credentials: include``).
  */
 import type {
-  AdminStats,
+  AdminStatsV2,
+  ChatMessage,
+  ConversationListItem,
+  Gender,
+  IncomingLike,
   LikeResult,
+  LookingFor,
+  Match,
   Me,
-  Profile,
   PublicProfile,
-  ReferralInfo,
   ReportRow,
+  SkippedItem,
 } from "./types";
 
 const BASE = "";
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export class APIError extends Error {
+  status: number;
+  detail: string;
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
     headers: {
@@ -38,9 +50,7 @@ async function request<T>(
     } catch {
       detail = await res.text();
     }
-    const err = new Error(detail || `HTTP ${res.status}`);
-    (err as { status?: number }).status = res.status;
-    throw err;
+    throw new APIError(res.status, detail || `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -53,229 +63,294 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   if (!res.ok) {
-    const err = new Error(await res.text());
-    (err as { status?: number }).status = res.status;
-    throw err;
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body.detail || JSON.stringify(body);
+    } catch {
+      detail = await res.text();
+    }
+    throw new APIError(res.status, detail || `HTTP ${res.status}`);
   }
   return (await res.json()) as T;
 }
 
+export type RegisterPayload = {
+  email: string;
+  password: string;
+  username?: string;
+  name: string;
+  age: number;
+  gender: Gender;
+  looking_for: LookingFor;
+  description?: string;
+  school?: string;
+  phone?: string;
+  ref?: number;
+};
+
 export const api = {
-  // ---- auth -------------------------------------------------------
-  loginTelegram(payload: Record<string, unknown>) {
-    return request<Me>("/api/auth/telegram", {
+  // ── auth ─────────────────────────────────────────────────────────
+  register(payload: RegisterPayload) {
+    return request<{ ok: true; user: Me }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  },
+  login(email: string, password: string) {
+    return request<{ ok: true; user: Me }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
     });
   },
   logout() {
-    return request<{ ok: string }>("/api/auth/logout", { method: "POST" });
+    return request<{ ok: true }>("/api/auth/logout", { method: "POST" });
   },
   me() {
-    return request<Me>("/api/auth/me");
+    return request<{ user: Me }>("/api/auth/me");
+  },
+  resendVerify() {
+    return request<{ ok: true }>("/api/auth/resend-verify", { method: "POST" });
+  },
+  verifyEmail(token: string) {
+    return request<{ ok: true }>(
+      `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+      { method: "POST" },
+    );
   },
 
-  // ---- registration / profile -------------------------------------
-  register(payload: Omit<Profile, "user_id" | "username" | "created_at">) {
-    return request<{ ok: true; profile: Profile }>("/api/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
+  // ── profile ──────────────────────────────────────────────────────
   myProfile() {
-    return request<Profile>("/api/me");
+    return request<{ profile: Me }>("/api/profile");
   },
-  updateDescription(description: string) {
-    return request<Profile>("/api/me/description", {
+  updateProfile(patch: Partial<RegisterPayload> & { hidden?: boolean }) {
+    return request<{ profile: Me }>("/api/profile", {
       method: "PATCH",
-      body: JSON.stringify({ description }),
+      body: JSON.stringify(patch),
     });
   },
-  replacePhotos(photos: { type: "photo" | "video"; file_id: string }[]) {
-    return request<Profile>("/api/me/photos", {
-      method: "PUT",
-      body: JSON.stringify({ photos }),
-    });
-  },
-  uploadPhoto(file: File, kind: "photo" | "video") {
+  addPhoto(file: File) {
     const fd = new FormData();
-    fd.append("kind", kind);
     fd.append("file", file);
-    return requestForm<{ type: "photo" | "video"; file_id: string }>(
-      "/api/me/photos/upload",
-      fd,
-    );
+    return requestForm<{ profile: Me }>("/api/profile/photos", fd);
   },
-  hide() {
-    return request<{ ok: string }>("/api/me/hide", { method: "POST" });
-  },
-  unhide() {
-    return request<{ ok: string }>("/api/me/unhide", { method: "POST" });
-  },
-
-  // ---- browse -----------------------------------------------------
-  next(index: number) {
-    return request<{
-      profile: PublicProfile | null;
-      caption?: string;
-      remaining: number;
-      index: number;
-      next_index?: number;
-    }>(`/api/browse/next?index=${index}`);
-  },
-  like(targetUserId: number) {
-    return request<LikeResult>("/api/browse/like", {
-      method: "POST",
-      body: JSON.stringify({ target_user_id: targetUserId }),
-    });
-  },
-  dislike(targetUserId: number) {
-    return request<{ ok: string }>("/api/browse/dislike", {
-      method: "POST",
-      body: JSON.stringify({ target_user_id: targetUserId }),
-    });
-  },
-  report(targetUserId: number, reason: string) {
-    return request<{ ok: string }>("/api/browse/report", {
-      method: "POST",
-      body: JSON.stringify({ target_user_id: targetUserId, reason }),
-    });
-  },
-  sendMessage(opts: {
-    target_user_id: number;
-    kind: "text" | "photo" | "video" | "voice" | "video_note";
-    text?: string;
-    file?: File;
-  }) {
-    const fd = new FormData();
-    fd.append("target_user_id", String(opts.target_user_id));
-    fd.append("kind", opts.kind);
-    if (opts.text != null) fd.append("text", opts.text);
-    if (opts.file) fd.append("file", opts.file);
-    return requestForm<{
-      delivered: boolean;
-      match: boolean;
-      contact: string | null;
-    }>("/api/browse/message", fd);
-  },
-
-  // ---- skipped ----------------------------------------------------
-  skipped() {
-    return request<{
-      items: (PublicProfile & { caption: string })[];
-      count: number;
-    }>("/api/skipped");
-  },
-  clearSkipped() {
-    return request<{ removed: number }>("/api/skipped/clear", {
-      method: "POST",
-    });
-  },
-
-  // ---- likes / matches --------------------------------------------
-  incomingLikes() {
-    return request<{
-      items: (PublicProfile & { caption: string })[];
-      count: number;
-    }>("/api/likes/incoming");
-  },
-  matches() {
-    return request<{
-      items: {
-        user_id: number;
-        name: string;
-        age: number;
-        gender: string;
-        username?: string | null;
-        photos: { type: string; file_id: string }[];
-      }[];
-      count: number;
-    }>("/api/likes/matches");
-  },
-
-  // ---- referrals --------------------------------------------------
-  referral() {
-    return request<ReferralInfo>("/api/me/referral");
-  },
-
-  // ---- admin ------------------------------------------------------
-  adminStats() {
-    return request<AdminStats>("/api/admin/stats");
-  },
-  adminTop(kind: "active" | "likes" | "referrers", limit = 10) {
-    const map = { active: "top-active", likes: "top-likes", referrers: "top-referrers" } as const;
-    return request<{ items: Profile[] }>(`/api/admin/${map[kind]}?limit=${limit}`);
-  },
-  adminLoners() {
-    return request<{ items: Profile[] }>("/api/admin/loners");
-  },
-  adminNewToday() {
-    return request<{ items: Profile[] }>("/api/admin/new-today");
-  },
-  adminUsers(page: number, pageSize = 10) {
-    return request<{
-      items: (Profile & { banned: boolean })[];
-      total: number;
-      page: number;
-      page_size: number;
-      has_next: boolean;
-    }>(`/api/admin/users?page=${page}&page_size=${pageSize}`);
-  },
-  adminSearch(q: string) {
-    return request<{ items: Profile[] }>(
-      `/api/admin/users/search?q=${encodeURIComponent(q)}`,
-    );
-  },
-  adminUser(userId: number) {
-    return request<Profile & { banned: boolean }>(
-      `/api/admin/users/${userId}`,
-    );
-  },
-  adminBan(userId: number) {
-    return request<{ ok: string }>(`/api/admin/users/${userId}/ban`, {
-      method: "POST",
-    });
-  },
-  adminUnban(userId: number) {
-    return request<{ ok: string }>(`/api/admin/users/${userId}/unban`, {
-      method: "POST",
-    });
-  },
-  adminDelete(userId: number) {
-    return request<{ ok: string }>(`/api/admin/users/${userId}`, {
+  deletePhoto(photoId: number) {
+    return request<{ profile: Me }>(`/api/profile/photos/${photoId}`, {
       method: "DELETE",
     });
   },
-  adminDM(userId: number, text: string) {
-    return request<{ delivered: boolean }>("/api/admin/dm", {
+
+  // ── browse ───────────────────────────────────────────────────────
+  browse(opts: { cursor?: number; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.cursor) q.set("cursor", String(opts.cursor));
+    if (opts.limit) q.set("limit", String(opts.limit));
+    return request<{
+      items: PublicProfile[];
+      total: number;
+      next: number | null;
+    }>(`/api/browse${q.toString() ? `?${q}` : ""}`);
+  },
+  viewUser(userId: number) {
+    return request<{ profile: PublicProfile }>(`/api/browse/${userId}`);
+  },
+
+  // ── likes / matches ──────────────────────────────────────────────
+  like(targetId: number) {
+    return request<LikeResult>("/api/likes", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, text }),
+      body: JSON.stringify({ target_id: targetId }),
+    });
+  },
+  dislike(targetId: number) {
+    return request<{ ok: true }>("/api/dislikes", {
+      method: "POST",
+      body: JSON.stringify({ target_id: targetId }),
+    });
+  },
+  matches() {
+    return request<{ items: Match[] }>("/api/matches");
+  },
+  incomingLikes() {
+    return request<{ items: IncomingLike[] }>("/api/likes/incoming");
+  },
+  skipped() {
+    return request<{ items: SkippedItem[] }>("/api/skipped");
+  },
+  undoSkip(targetId: number) {
+    return request<{ ok: true }>("/api/skipped/undo", {
+      method: "POST",
+      body: JSON.stringify({ target_id: targetId }),
+    });
+  },
+
+  // ── conversations / messages ─────────────────────────────────────
+  conversations() {
+    return request<{ items: ConversationListItem[] }>("/api/conversations");
+  },
+  conversation(id: number) {
+    return request<{ conversation: ConversationListItem }>(
+      `/api/conversations/${id}`,
+    );
+  },
+  history(id: number, opts: { offset?: number; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.offset) q.set("offset", String(opts.offset));
+    if (opts.limit) q.set("limit", String(opts.limit));
+    return request<{ items: ChatMessage[]; next: number | null }>(
+      `/api/conversations/${id}/messages${q.toString() ? `?${q}` : ""}`,
+    );
+  },
+  markRead(id: number) {
+    return request<{ ok: true; marked: number }>(
+      `/api/conversations/${id}/read`,
+      { method: "POST" },
+    );
+  },
+  conversationWith(userId: number) {
+    return request<{ conversation_id: number }>(
+      `/api/messages/with/${userId}`,
+    );
+  },
+  sendText(conversationId: number, body: string, replyToId?: number) {
+    return request<{ message: ChatMessage }>("/api/messages/send", {
+      method: "POST",
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        body,
+        reply_to_id: replyToId,
+      }),
+    });
+  },
+  sendAttachment(opts: {
+    conversation_id: number;
+    kind: "voice" | "video" | "photo" | "file";
+    filename: string;
+    mime?: string;
+    duration_ms?: number;
+    width?: number;
+    height?: number;
+    body?: string;
+    reply_to_id?: number;
+  }) {
+    return request<{ message: ChatMessage }>("/api/messages/send", {
+      method: "POST",
+      body: JSON.stringify({
+        ...opts,
+        attachment_filename: opts.filename,
+        attachment_mime: opts.mime,
+        attachment_duration_ms: opts.duration_ms,
+        attachment_width: opts.width,
+        attachment_height: opts.height,
+      }),
+    });
+  },
+  reactMessage(messageId: number, emoji: string) {
+    return request<{ ok: true; removed: boolean }>(
+      `/api/messages/${messageId}/react`,
+      { method: "POST", body: JSON.stringify({ emoji }) },
+    );
+  },
+  deleteMessage(messageId: number) {
+    return request<{ ok: true }>(`/api/messages/${messageId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // ── media ────────────────────────────────────────────────────────
+  upload(file: Blob, filename = "upload.bin") {
+    const fd = new FormData();
+    fd.append(
+      "file",
+      file instanceof File ? file : new File([file], filename),
+    );
+    return requestForm<{
+      filename: string;
+      mime: string;
+      kind: "photo" | "video" | "voice" | "file";
+      duration_ms: number | null;
+      width: number | null;
+      height: number | null;
+      size: number;
+    }>("/api/media/upload", fd);
+  },
+
+  // ── reports ──────────────────────────────────────────────────────
+  report(targetId: number, reason: string) {
+    return request<{ ok: true }>("/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ target_id: targetId, reason }),
+    });
+  },
+
+  // ── referrals ────────────────────────────────────────────────────
+  referrals() {
+    return request<{
+      count: number;
+      items: PublicProfile[];
+      ref_link: string;
+    }>("/api/referrals");
+  },
+
+  // ── admin ────────────────────────────────────────────────────────
+  adminStats() {
+    return request<AdminStatsV2>("/api/admin/stats");
+  },
+  adminUsers(q = "", cursor = 0) {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (cursor) p.set("cursor", String(cursor));
+    return request<{ items: Me[]; next: number | null }>(
+      `/api/admin/users${p.toString() ? `?${p}` : ""}`,
+    );
+  },
+  adminTopReceived() {
+    return request<{ items: { user_id: number; count: number }[] }>(
+      "/api/admin/top/received",
+    );
+  },
+  adminTopMatches() {
+    return request<{ items: { user_id: number; count: number }[] }>(
+      "/api/admin/top/matches",
+    );
+  },
+  adminTopReferrers() {
+    return request<{ items: { user_id: number; count: number }[] }>(
+      "/api/admin/top/referrers",
+    );
+  },
+  adminBan(userId: number) {
+    return request<{ ok: true }>("/api/admin/ban", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
+  adminUnban(userId: number) {
+    return request<{ ok: true }>("/api/admin/unban", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
+  adminDeleteUser(userId: number) {
+    return request<{ ok: true }>(`/api/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+  adminReports(status: "open" | "resolved" | "banned" | "all" = "open") {
+    return request<{ items: ReportRow[] }>(
+      `/api/admin/reports?status=${status}`,
+    );
+  },
+  adminResolveReport(reportId: number, action: "resolve" | "ban") {
+    return request<{ ok: true }>("/api/admin/reports/action", {
+      method: "POST",
+      body: JSON.stringify({ report_id: reportId, action }),
     });
   },
   adminBroadcast(text: string) {
-    return request<{ sent: number; failed: number }>("/api/admin/broadcast", {
+    return request<{ ok: true; sent: number }>("/api/admin/broadcast", {
       method: "POST",
       body: JSON.stringify({ text }),
     });
-  },
-  adminReports() {
-    return request<{ items: ReportRow[] }>("/api/admin/reports");
-  },
-  adminResolve(index: number) {
-    return request<{ ok: string }>(`/api/admin/reports/${index}/resolve`, {
-      method: "POST",
-    });
-  },
-  adminBanFromReport(index: number) {
-    return request<{ ok: string }>(
-      `/api/admin/reports/${index}/ban-target`,
-      { method: "POST" },
-    );
-  },
-  adminDeleteFromReport(index: number) {
-    return request<{ ok: string }>(
-      `/api/admin/reports/${index}/delete-target`,
-      { method: "POST" },
-    );
   },
 };

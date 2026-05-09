@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
-import { toast } from "@/components/Toaster";
+
+import { APIError, api } from "@/lib/api";
+import { useNotifications } from "@/components/providers/NotificationProvider";
 
 export default function AdminBroadcastPage() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const { push } = useNotifications();
 
   return (
     <main className="flex flex-col gap-4">
@@ -19,8 +21,8 @@ export default function AdminBroadcastPage() {
       </header>
 
       <p className="text-sm text-ink-100/70">
-        Сообщение приходит в Telegram всем зарегистрированным. Будет видно от
-        имени бота с пометкой «📢 от администрации».
+        Сообщение появится в чатах всех пользователей как системное —
+        отправителем будет твой админ-аккаунт.
       </p>
 
       <textarea
@@ -37,17 +39,13 @@ export default function AdminBroadcastPage() {
           setBusy(true);
           try {
             const r = await api.adminBroadcast(text.trim());
-            toast({
+            push({
               title: "Рассылка отправлена",
-              body: `доставлено: ${r.sent}, ошибок: ${r.failed}`,
+              body: `доставлено: ${r.sent}`,
             });
             setText("");
           } catch (e) {
-            toast({
-              title: "Ошибка",
-              body: (e as Error).message,
-              tone: "error",
-            });
+            if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
           } finally {
             setBusy(false);
           }

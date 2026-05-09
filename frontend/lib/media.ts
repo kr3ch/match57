@@ -1,4 +1,7 @@
-/** Build the URL of the media-proxy for a given Telegram file_id. */
-export function mediaUrl(fileId: string): string {
-  return `/api/media/${encodeURIComponent(fileId)}`;
+/**
+ * Helper to build a `<img>` / `<video>` URL for a stored media item.
+ */
+
+export function mediaUrl(userId: number, filename: string): string {
+  return `/api/media/${userId}/${encodeURIComponent(filename)}`;
 }

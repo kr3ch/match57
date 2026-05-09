@@ -2,20 +2,17 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { api } from "@/lib/api";
-import { useAuth } from "@/components/providers/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthProvider";
+
 const SECTIONS = [
-  { href: "/admin/users", label: "Пользователи", desc: "Список с фильтрами" },
-  { href: "/admin/search", label: "Поиск", desc: "По username, имени, ID" },
-  { href: "/admin/reports", label: "Жалобы", desc: "Бан / удалить / закрыть" },
-  { href: "/admin/broadcast", label: "Рассылка", desc: "Сообщение всем" },
-  { href: "/admin/dm", label: "Сообщение", desc: "Лично пользователю" },
-  { href: "/admin/leaderboards", label: "Топы", desc: "Активные / лайки / рефералы" },
-  { href: "/admin/loners", label: "Одиночки", desc: "Без мэтчей" },
-  { href: "/admin/new-today", label: "Новые сегодня", desc: "Регистрации за день" },
+  { href: "/admin/users", label: "Пользователи", desc: "Список + бан / удаление" },
+  { href: "/admin/reports", label: "Жалобы", desc: "Закрыть, забанить" },
+  { href: "/admin/broadcast", label: "Рассылка", desc: "Системное сообщение всем" },
+  { href: "/admin/leaderboards", label: "Топы", desc: "Лайки / мэтчи / рефералы" },
 ];
 
 export default function AdminPage() {
@@ -34,24 +31,21 @@ export default function AdminPage() {
       <header>
         <span className="label">админ-панель</span>
         <h1 className="display text-4xl">MATCH 57</h1>
-        <p className="mt-1 text-sm text-ink-100/70">
-          Те же действия, что в Telegram-боте, теперь в нормальном интерфейсе.
-        </p>
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="всего" value={stats?.total ?? "—"} />
-        <Stat label="парней" value={stats?.guys ?? "—"} />
-        <Stat label="девушек" value={stats?.girls ?? "—"} />
-        <Stat label="новых сегодня" value={stats?.new_today ?? "—"} />
+        <Stat label="всего" value={stats?.total_users ?? "—"} />
+        <Stat label="скрыто" value={stats?.hidden ?? "—"} />
+        <Stat label="забанено" value={stats?.banned ?? "—"} />
+        <Stat label="фото" value={stats?.photo_count ?? "—"} />
         <Stat label="лайков" value={stats?.total_likes ?? "—"} />
+        <Stat label="дизлайков" value={stats?.total_dislikes ?? "—"} />
         <Stat label="мэтчей" value={stats?.total_matches ?? "—"} />
         <Stat
           label="жалоб открыто"
-          value={stats?.unresolved_reports ?? "—"}
-          warn={(stats?.unresolved_reports ?? 0) > 0}
+          value={stats?.open_reports ?? "—"}
+          warn={(stats?.open_reports ?? 0) > 0}
         />
-        <Stat label="забанено" value={stats?.banned ?? "—"} />
       </section>
 
       <ul className="grid gap-2 sm:grid-cols-2">

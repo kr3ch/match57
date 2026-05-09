@@ -1,109 +1,69 @@
-"""Admin-side aggregations ported from bot.py admin handlers.
-
-All functions are read-only (or trivially mutating via the Database) so they
-can be reused by both the Telegram admin panel and the web admin pages.
-"""
+"""Aggregations used by the admin panel."""
 
 from __future__ import annotations
 
-from typing import Any
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import Database
+from app.db.models import Like, Match, Photo, Report, User
 
 
-def stats(db: Database) -> dict[str, Any]:
-    users = db.data["users"]
-    total = len(users)
-    guys = sum(1 for u in users.values() if u.get("gender") == "Парень")
-    girls = sum(1 for u in users.values() if u.get("gender") == "Девушка")
-    total_matches = sum(len(u.get("matches", [])) for u in users.values()) // 2
-    total_likes = sum(len(u.get("likes_sent", [])) for u in users.values())
-    total_referrals = sum(len(u.get("referrals", [])) for u in users.values())
-    loners = sum(1 for u in users.values() if len(u.get("matches", [])) == 0)
-    matched = sum(1 for u in users.values() if len(u.get("matches", [])) > 0)
-    hidden_count = sum(1 for u in users.values() if u.get("hidden", False))
-    new_today = db.get_new_today_count()
-    banned_count = len(db.data.get("banned", []))
-    reports_count = len(db.get_reports())
-    unresolved = len(db.get_unresolved_reports())
+async def stats(db: AsyncSession) -> dict:
+    total_users = await db.scalar(select(func.count(User.id))) or 0
+    banned = await db.scalar(select(func.count(User.id)).where(User.banned.is_(True))) or 0
+    hidden = await db.scalar(select(func.count(User.id)).where(User.hidden.is_(True))) or 0
+    total_likes = await db.scalar(select(func.count(Like.id)).where(Like.kind == "like")) or 0
+    total_dislikes = await db.scalar(select(func.count(Like.id)).where(Like.kind == "dislike")) or 0
+    total_matches = await db.scalar(select(func.count(Match.id))) or 0
+    open_reports = (
+        await db.scalar(select(func.count(Report.id)).where(Report.status == "open")) or 0
+    )
+    photo_count = await db.scalar(select(func.count(Photo.id))) or 0
     return {
-        "total": total,
-        "guys": guys,
-        "girls": girls,
-        "total_likes": total_likes,
-        "total_matches": total_matches,
-        "total_referrals": total_referrals,
-        "loners": loners,
-        "matched": matched,
-        "hidden": hidden_count,
-        "new_today": new_today,
-        "banned": banned_count,
-        "reports": reports_count,
-        "unresolved_reports": unresolved,
+        "total_users": int(total_users),
+        "banned": int(banned),
+        "hidden": int(hidden),
+        "total_likes": int(total_likes),
+        "total_dislikes": int(total_dislikes),
+        "total_matches": int(total_matches),
+        "open_reports": int(open_reports),
+        "photo_count": int(photo_count),
     }
 
 
-def top_active(db: Database, limit: int = 10) -> list[dict[str, Any]]:
-    return sorted(
-        db.data["users"].values(),
-        key=lambda u: len(u.get("likes_sent", [])) + len(u.get("matches", [])),
-        reverse=True,
-    )[:limit]
+async def top_received(db: AsyncSession, limit: int = 10) -> list[dict]:
+    stmt = (
+        select(Like.to_user_id, func.count(Like.id).label("n"))
+        .where(Like.kind == "like")
+        .group_by(Like.to_user_id)
+        .order_by(func.count(Like.id).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [{"user_id": uid, "count": int(n)} for uid, n in rows]
 
 
-def top_likes(db: Database, limit: int = 10) -> list[dict[str, Any]]:
-    return sorted(
-        db.data["users"].values(),
-        key=lambda u: len(u.get("likes_received", [])),
-        reverse=True,
-    )[:limit]
+async def top_matches(db: AsyncSession, limit: int = 10) -> list[dict]:
+    stmt = select(Match.user_a_id, Match.user_b_id)
+    rows = (await db.execute(stmt)).all()
+    counts: dict[int, int] = {}
+    for a, b in rows:
+        counts[a] = counts.get(a, 0) + 1
+        counts[b] = counts.get(b, 0) + 1
+    pairs = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+    return [{"user_id": uid, "count": n} for uid, n in pairs]
 
 
-def top_referrers(db: Database, limit: int = 10) -> list[dict[str, Any]]:
-    return sorted(
-        [u for u in db.data["users"].values() if u.get("referrals")],
-        key=lambda u: len(u.get("referrals", [])),
-        reverse=True,
-    )[:limit]
+async def top_referrers(db: AsyncSession, limit: int = 10) -> list[dict]:
+    stmt = (
+        select(User.ref_user_id, func.count(User.id))
+        .where(User.ref_user_id.is_not(None))
+        .group_by(User.ref_user_id)
+        .order_by(func.count(User.id).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [{"user_id": uid, "count": int(n)} for uid, n in rows]
 
 
-def loners(db: Database) -> list[dict[str, Any]]:
-    return [u for u in db.data["users"].values() if not u.get("matches")]
-
-
-def new_today(db: Database) -> list[dict[str, Any]]:
-    from datetime import datetime
-
-    today = datetime.now().date()
-    out: list[dict[str, Any]] = []
-    for u in db.data["users"].values():
-        try:
-            if datetime.fromisoformat(u.get("created_at", "")).date() == today:
-                out.append(u)
-        except Exception:
-            pass
-    return out
-
-
-def search_users(db: Database, query: str) -> list[dict[str, Any]]:
-    q = (query or "").strip().lstrip("@").lower()
-    if not q:
-        return []
-    out: list[dict[str, Any]] = []
-    for u in db.data["users"].values():
-        username = (u.get("username") or "").lower()
-        name = (u.get("name") or "").lower()
-        if q in username or q in name or q == str(u.get("user_id")):
-            out.append(u)
-    return out
-
-
-def all_users_paginated(
-    db: Database, page: int, page_size: int = 10
-) -> tuple[list[tuple[str, dict[str, Any]]], int]:
-    items = list(db.data["users"].items())
-    items.sort(key=lambda kv: kv[1].get("created_at", ""))
-    total = len(items)
-    start = max(page, 0) * page_size
-    end = min(start + page_size, total)
-    return items[start:end], total
+__all__ = ["stats", "top_matches", "top_received", "top_referrers"]

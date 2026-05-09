@@ -1,46 +1,57 @@
-"""FastAPI dependencies: current user, admin guard, db handle."""
+"""FastAPI dependencies: DB session + current-user resolution from cookie."""
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import SESSION_COOKIE, read_session
-from app.config import ADMIN_IDS
-from app.db import Database, get_db
-
-
-def db_dep() -> Database:
-    return get_db()
+from app.auth import SESSION_COOKIE, verify_session
+from app.db import SessionLocal
+from app.db.models import User
 
 
-def session_payload(
-    session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
-) -> dict[str, Any]:
-    if not session:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_authenticated")
-    payload = read_session(session)
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_session")
+async def db_session() -> AsyncIterator[AsyncSession]:
+    """One AsyncSession per request, commit on exit."""
+    async with SessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def session_payload(
+    cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
+) -> dict:
+    """Verified payload from the auth cookie, or 401."""
+    payload = verify_session(cookie)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="not_authenticated")
     return payload
 
 
-def current_user_id(payload: dict[str, Any] = Depends(session_payload)) -> int:
-    return int(payload["user_id"])
+async def current_user(
+    payload: Annotated[dict, Depends(session_payload)],
+    db: Annotated[AsyncSession, Depends(db_session)],
+) -> User:
+    user = await db.get(User, int(payload["user_id"]))
+    if user is None:
+        raise HTTPException(status_code=401, detail="user_not_found")
+    if user.banned:
+        raise HTTPException(status_code=403, detail="banned")
+    return user
 
 
-def current_profile(
-    user_id: int = Depends(current_user_id),
-    db: Database = Depends(db_dep),
-) -> dict[str, Any]:
-    profile = db.get_user(user_id)
-    if not profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="profile_not_found")
-    return profile
+async def current_admin(user: Annotated[User, Depends(current_user)]) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="admin_only")
+    return user
 
 
-def admin_only(user_id: int = Depends(current_user_id)) -> int:
-    if user_id not in ADMIN_IDS:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="admin_only")
-    return user_id
+SessionDep = Annotated[AsyncSession, Depends(db_session)]
+CurrentUserDep = Annotated[User, Depends(current_user)]
+CurrentAdminDep = Annotated[User, Depends(current_admin)]

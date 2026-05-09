@@ -1,34 +1,35 @@
-"""Referral link / bonuses for the '🎁 Пригласи друзей' page."""
+"""Referral count for the current user."""
 
 from __future__ import annotations
 
-from typing import Any
+from fastapi import APIRouter
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
-from fastapi import APIRouter, Depends
+from app.db.models import User
+from app.deps import CurrentUserDep, SessionDep
+from app.services.profiles import serialize_user
 
-from app.bot_client import get_bot_username
-from app.config import FRONTEND_ORIGIN
-from app.db import Database
-from app.deps import current_user_id, db_dep
-from app.services.referrals import (
-    bonuses_text,
-    telegram_referral_link,
-    web_referral_link,
-)
-
-router = APIRouter(prefix="/api/me", tags=["referrals"])
+router = APIRouter(prefix="/api/referrals", tags=["referrals"])
 
 
-@router.get("/referral")
-async def referral(
-    user_id: int = Depends(current_user_id), db: Database = Depends(db_dep)
-) -> dict[str, Any]:
-    profile = db.get_user(user_id) or {}
-    referrals = profile.get("referrals", [])
-    bot_username = await get_bot_username()
+@router.get("")
+async def my_referrals(user: CurrentUserDep, db: SessionDep) -> dict:
+    count = await db.scalar(select(func.count(User.id)).where(User.ref_user_id == user.id))
+    referees = (
+        (
+            await db.execute(
+                select(User)
+                .where(User.ref_user_id == user.id)
+                .options(selectinload(User.photos))
+                .order_by(User.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return {
-        "count": len(referrals),
-        "bonuses": bonuses_text(len(referrals)),
-        "telegram_link": telegram_referral_link(bot_username, user_id),
-        "web_link": web_referral_link(FRONTEND_ORIGIN, user_id),
+        "count": int(count or 0),
+        "items": [await serialize_user(db, u) for u in referees],
+        "ref_link": f"/register?ref={user.id}",
     }

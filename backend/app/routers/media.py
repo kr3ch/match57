@@ -1,70 +1,77 @@
-"""Telegram media proxy.
+"""``/api/media/*``: upload + serve.
 
-Images and videos in user profiles are stored as Telegram ``file_id``s. To
-render them in the browser we stream the bytes server-side via
-``Bot.get_file`` + ``download_file``.
+The serve endpoint streams files from the per-user upload folder. Access
+control: a file is readable by the owner, by any of the owner's match
+partners, by an admin, or always (profile photos referenced by the public
+profile API are always readable since they're already advertised in
+``/api/browse``).
 """
 
 from __future__ import annotations
 
-import asyncio
+from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy import select
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
-
-from app.bot_client import fetch_file_bytes, fetch_file_path
+from app.db.models import Match, Photo
+from app.deps import CurrentUserDep, SessionDep
+from app.services.uploads import store_upload, upload_path
 
 router = APIRouter(prefix="/api/media", tags=["media"])
 
-_MIME_BY_EXT = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
-    ".mp4": "video/mp4",
-    ".mov": "video/quicktime",
-    ".webm": "video/webm",
-    ".ogg": "audio/ogg",
-    ".oga": "audio/ogg",
-    ".m4a": "audio/mp4",
-}
+
+@router.post("/upload")
+async def upload(file: UploadFile, user: CurrentUserDep) -> dict:
+    return await store_upload(file, user.id)
 
 
-def _mime_for(path: str | None) -> str:
-    if not path:
-        return "application/octet-stream"
-    p = path.lower()
-    for ext, mime in _MIME_BY_EXT.items():
-        if p.endswith(ext):
-            return mime
+def _content_type_for(name: str) -> str:
+    name = name.lower()
+    if name.endswith(".jpg") or name.endswith(".jpeg"):
+        return "image/jpeg"
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith(".webp"):
+        return "image/webp"
+    if name.endswith(".webm"):
+        return "video/webm"
+    if name.endswith(".mp4"):
+        return "video/mp4"
+    if name.endswith(".ogg"):
+        return "audio/ogg"
+    if name.endswith(".mp3"):
+        return "audio/mpeg"
+    if name.endswith(".pdf"):
+        return "application/pdf"
+    if name.endswith(".txt"):
+        return "text/plain"
+    if name.endswith(".zip"):
+        return "application/zip"
     return "application/octet-stream"
 
 
-_cache: dict[str, tuple[bytes, str]] = {}
-_lock = asyncio.Lock()
-_MAX_CACHED = 200
+@router.get("/{user_id}/{filename}")
+async def serve(user_id: int, filename: str, user: CurrentUserDep, db: SessionDep):
+    if "/" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="bad_filename")
+    path = upload_path(user_id, filename)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="not_found")
 
+    # Owner / admin always allowed.
+    if user.is_admin or user_id == user.id:
+        return FileResponse(path, media_type=_content_type_for(filename))
 
-@router.get("/{file_id}")
-async def get_media(file_id: str) -> Response:
-    if not file_id or len(file_id) > 200:
-        raise HTTPException(status_code=400, detail="bad_file_id")
-    async with _lock:
-        cached = _cache.get(file_id)
-    if cached is not None:
-        data, mime = cached
-        return Response(content=data, media_type=mime)
+    # Profile photos are always readable (advertised by /api/browse).
+    is_profile = await db.scalar(
+        select(Photo.id).where(Photo.user_id == user_id, Photo.filename == filename)
+    )
+    if is_profile is not None:
+        return FileResponse(path, media_type=_content_type_for(filename))
 
-    file_path = await fetch_file_path(file_id)
-    if file_path is None:
-        raise HTTPException(status_code=502, detail="telegram_unavailable")
-    raw = await fetch_file_bytes(file_id)
-    if raw is None:
-        raise HTTPException(status_code=502, detail="telegram_unavailable")
-    mime = _mime_for(file_path)
-    async with _lock:
-        if len(_cache) >= _MAX_CACHED:
-            _cache.clear()
-        _cache[file_id] = (raw, mime)
-    return Response(content=raw, media_type=mime)
+    # Else: must be matched with the owner.
+    a, b = (user.id, user_id) if user.id < user_id else (user_id, user.id)
+    matched = await db.scalar(select(Match.id).where(Match.user_a_id == a, Match.user_b_id == b))
+    if matched is None:
+        raise HTTPException(status_code=403, detail="forbidden")
+    return FileResponse(path, media_type=_content_type_for(filename))

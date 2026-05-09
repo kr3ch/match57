@@ -1,14 +1,16 @@
 "use client";
 
-import useSWR from "swr";
 import Link from "next/link";
+import useSWR from "swr";
 import { useState } from "react";
+
 import { api } from "@/lib/api";
 
 export default function AdminUsersPage() {
-  const [page, setPage] = useState(0);
-  const { data, isLoading } = useSWR(["admin/users", page], () =>
-    api.adminUsers(page),
+  const [q, setQ] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const { data, isLoading } = useSWR(["admin/users", q, cursor], () =>
+    api.adminUsers(q, cursor),
   );
   const items = data?.items ?? [];
 
@@ -20,6 +22,16 @@ export default function AdminUsersPage() {
           ← назад
         </Link>
       </header>
+
+      <input
+        className="input"
+        placeholder="email, имя или @username"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setCursor(0);
+        }}
+      />
 
       {isLoading ? <p>Грузим…</p> : null}
 
@@ -35,8 +47,7 @@ export default function AdminUsersPage() {
                   {u.name}, {u.age}
                 </div>
                 <div className="text-xs text-ink-200/70">
-                  {u.username ? `@${u.username}` : `id:${u.user_id}`} ·{" "}
-                  {u.gender}
+                  {u.username ? `@${u.username}` : `id:${u.user_id}`} · {u.email ?? ""} · {u.gender}
                   {u.banned ? (
                     <span className="ml-2 rounded-full bg-rose-500/20 px-2 py-0.5 text-rose-200">
                       бан
@@ -59,19 +70,16 @@ export default function AdminUsersPage() {
         <button
           type="button"
           className="btn-ghost disabled:opacity-30"
-          disabled={page === 0}
-          onClick={() => setPage((p) => Math.max(p - 1, 0))}
+          disabled={cursor === 0}
+          onClick={() => setCursor(0)}
         >
-          ← пред
+          ← в начало
         </button>
-        <span className="text-sm text-ink-200/70">
-          стр. {page + 1} / {Math.ceil((data?.total ?? 0) / (data?.page_size ?? 10)) || 1}
-        </span>
         <button
           type="button"
           className="btn-ghost disabled:opacity-30"
-          disabled={!data?.has_next}
-          onClick={() => setPage((p) => p + 1)}
+          disabled={!data?.next}
+          onClick={() => data?.next && setCursor(data.next)}
         >
           след →
         </button>

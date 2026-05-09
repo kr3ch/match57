@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import useSWR from "swr";
-import { api } from "@/lib/api";
+
+import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
-import { toast } from "@/components/Toaster";
+import { useNotifications } from "@/components/providers/NotificationProvider";
 
 export default function LikesPage() {
+  const router = useRouter();
+  const { push } = useNotifications();
   const { data, mutate, isLoading } = useSWR("likes/incoming", () =>
     api.incomingLikes(),
   );
@@ -33,7 +37,7 @@ export default function LikesPage() {
       ) : null}
 
       <ul className="grid gap-3 sm:grid-cols-2">
-        {items.map((p) => (
+        {items.map(({ user: p }) => (
           <motion.li
             layout
             key={p.user_id}
@@ -42,9 +46,9 @@ export default function LikesPage() {
             className="glass relative overflow-hidden p-3"
           >
             <div className="aspect-[3/4] overflow-hidden rounded-2xl">
-              {p.photos[0]?.type === "video" ? (
+              {p.photos[0]?.kind === "video" ? (
                 <video
-                  src={mediaUrl(p.photos[0].file_id)}
+                  src={mediaUrl(p.photos[0].user_id, p.photos[0].filename)}
                   className="h-full w-full object-cover"
                   autoPlay
                   loop
@@ -54,7 +58,7 @@ export default function LikesPage() {
               ) : p.photos[0] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={mediaUrl(p.photos[0].file_id)}
+                  src={mediaUrl(p.photos[0].user_id, p.photos[0].filename)}
                   alt=""
                   className="h-full w-full object-cover"
                 />
@@ -86,22 +90,21 @@ export default function LikesPage() {
                   setBusy(p.user_id);
                   try {
                     const r = await api.like(p.user_id);
-                    if (r.match) {
-                      toast({
-                        title: "Взаимная симпатия!",
-                        body: r.contact ?? "",
-                        tone: "match",
+                    if (r.matched && r.conversation_id) {
+                      push({
+                        title: `Мэтч с ${p.name}!`,
+                        body: "Открыть чат?",
+                        href: `/chats/${r.conversation_id}`,
                       });
+                      router.push(`/chats/${r.conversation_id}`);
                     } else {
-                      toast({ title: "Лайк отправлен" });
+                      push({ title: "Лайк отправлен" });
                     }
                     await mutate();
                   } catch (e) {
-                    toast({
-                      title: "Ошибка",
-                      body: (e as Error).message,
-                      tone: "error",
-                    });
+                    if (e instanceof APIError) {
+                      push({ title: "Ошибка", body: e.detail });
+                    }
                   } finally {
                     setBusy(null);
                   }
@@ -117,10 +120,12 @@ export default function LikesPage() {
                   setBusy(p.user_id);
                   try {
                     await api.dislike(p.user_id);
-                    toast({ title: "Пропустил" });
+                    push({ title: "Пропустил" });
                     await mutate();
                   } catch (e) {
-                    toast({ title: "Ошибка", body: (e as Error).message, tone: "error" });
+                    if (e instanceof APIError) {
+                      push({ title: "Ошибка", body: e.detail });
+                    }
                   } finally {
                     setBusy(null);
                   }
@@ -140,10 +145,7 @@ function Skeleton() {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="glass aspect-[3/5] animate-pulse opacity-60"
-        />
+        <div key={i} className="glass aspect-[3/5] animate-pulse opacity-60" />
       ))}
     </div>
   );

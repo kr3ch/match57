@@ -9,8 +9,8 @@ import { useAuth } from "@/components/providers/AuthProvider";
 const TABS = [
   { href: "/swipe", label: "Поиск", icon: "✦" },
   { href: "/likes", label: "Лайки", icon: "❤" },
-  { href: "/skipped", label: "Скип", icon: "↺" },
   { href: "/matches", label: "Мэтчи", icon: "✸" },
+  { href: "/chats", label: "Чаты", icon: "✉" },
   { href: "/profile", label: "Я", icon: "◍" },
 ];
 

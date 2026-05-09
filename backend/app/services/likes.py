@@ -1,56 +1,90 @@
-"""Mutual-like / match logic shared by the bot and the web backend.
+"""Like / dislike / match logic.
 
-The function is a pure rewrite of ``do_like`` from the original bot.py with
-identical semantics:
+Records a like/dislike row, detects mutual likes, materialises a ``Match`` and
+the corresponding ``Conversation`` in one transaction. Returns:
 
-* records the from->to like in ``likes_sent`` / ``likes_received``,
-* on a mutual like adds both sides to ``matches``,
-* returns ``True`` iff this call produced (or already had) a match,
-* returns ``False`` if either user is missing.
+  ``{"matched": bool, "match_id": int | None, "conversation_id": int | None}``
 """
 
 from __future__ import annotations
 
-from app.db import Database
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Conversation, Like, Match
 
 
-def do_like(db: Database, from_user_id: int, to_user_id: int) -> bool:
-    user_profile = db.get_user(from_user_id)
-    viewed_profile = db.get_user(to_user_id)
-    if not user_profile or not viewed_profile:
-        return False
-    if to_user_id in user_profile.get("likes_sent", []):
-        return to_user_id in user_profile.get("matches", [])
-
-    user_profile.setdefault("likes_sent", []).append(to_user_id)
-    viewed_profile.setdefault("likes_received", []).append(from_user_id)
-
-    is_match = from_user_id in viewed_profile.get("likes_sent", [])
-    if is_match:
-        user_profile.setdefault("matches", []).append(to_user_id)
-        viewed_profile.setdefault("matches", []).append(from_user_id)
-
-    db.update_user(from_user_id, user_profile)
-    db.update_user(to_user_id, viewed_profile)
-    return is_match
+def _canonical(a: int, b: int) -> tuple[int, int]:
+    return (a, b) if a < b else (b, a)
 
 
-def add_dislike(db: Database, from_user_id: int, to_user_id: int) -> None:
-    user_profile = db.get_user(from_user_id)
-    if not user_profile:
+async def record_like(db: AsyncSession, from_user_id: int, to_user_id: int) -> dict:
+    if from_user_id == to_user_id:
+        return {"matched": False, "match_id": None, "conversation_id": None}
+
+    existing = await db.scalar(
+        select(Like).where(Like.from_user_id == from_user_id, Like.to_user_id == to_user_id)
+    )
+    if existing is None:
+        db.add(Like(from_user_id=from_user_id, to_user_id=to_user_id, kind="like"))
+    else:
+        existing.kind = "like"
+        existing.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.flush()
+
+    reciprocal = await db.scalar(
+        select(Like).where(
+            Like.from_user_id == to_user_id,
+            Like.to_user_id == from_user_id,
+            Like.kind == "like",
+        )
+    )
+    if reciprocal is None:
+        return {"matched": False, "match_id": None, "conversation_id": None}
+
+    a, b = _canonical(from_user_id, to_user_id)
+    match = await db.scalar(select(Match).where(Match.user_a_id == a, Match.user_b_id == b))
+    if match is None:
+        match = Match(user_a_id=a, user_b_id=b)
+        db.add(match)
+        await db.flush()
+
+    conv = await db.scalar(
+        select(Conversation).where(Conversation.user_a_id == a, Conversation.user_b_id == b)
+    )
+    if conv is None:
+        conv = Conversation(user_a_id=a, user_b_id=b)
+        db.add(conv)
+        await db.flush()
+
+    return {"matched": True, "match_id": match.id, "conversation_id": conv.id}
+
+
+async def record_dislike(db: AsyncSession, from_user_id: int, to_user_id: int) -> None:
+    if from_user_id == to_user_id:
         return
-    user_profile.setdefault("dislikes", [])
-    if to_user_id not in user_profile["dislikes"]:
-        user_profile["dislikes"].append(to_user_id)
-        db.update_user(from_user_id, user_profile)
+    existing = await db.scalar(
+        select(Like).where(Like.from_user_id == from_user_id, Like.to_user_id == to_user_id)
+    )
+    if existing is None:
+        db.add(Like(from_user_id=from_user_id, to_user_id=to_user_id, kind="dislike"))
+    else:
+        existing.kind = "dislike"
+        existing.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def format_contact(profile: dict | None) -> str:
-    """Same helper as bot.py: '@username (Name)' or fallback hint."""
-    if not profile:
-        return "Пользователь (анкета удалена)"
-    username = profile.get("username")
-    name = profile.get("name", "Пользователь")
-    if username:
-        return f"@{username} ({name})"
-    return f"{name} (попроси написать первым — у него нет username)"
+async def reset_dislike(db: AsyncSession, from_user_id: int, to_user_id: int) -> None:
+    existing = await db.scalar(
+        select(Like).where(
+            Like.from_user_id == from_user_id,
+            Like.to_user_id == to_user_id,
+            Like.kind == "dislike",
+        )
+    )
+    if existing:
+        await db.delete(existing)
+
+
+__all__ = ["record_dislike", "record_like", "reset_dislike"]

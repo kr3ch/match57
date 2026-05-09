@@ -2,45 +2,49 @@
 
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+
+import { APIError, api } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { toast } from "@/components/Toaster";
+import { useNotifications } from "@/components/providers/NotificationProvider";
 
 export default function SettingsPage() {
   const { me, refresh, logout } = useAuth();
   const router = useRouter();
-  const { data: ref, mutate: mutateRef } = useSWR("me/referral", () =>
-    api.referral(),
-  );
+  const { push, permitted, requestPermission } = useNotifications();
+  const { data: ref } = useSWR("me/referral", () => api.referrals());
 
   return (
     <main className="flex flex-col gap-5">
       <h1 className="display text-4xl">настройки</h1>
 
       <section className="glass p-5">
+        <h2 className="display text-2xl">уведомления</h2>
+        <p className="mt-1 text-sm text-ink-100/80">
+          Включи системные уведомления — будем пинговать про мэтчи и сообщения.
+          Внутри сайта тосты и звуки работают без разрешений.
+        </p>
+        <button
+          type="button"
+          className="btn-ghost mt-4"
+          onClick={() => void requestPermission()}
+        >
+          {permitted ? "Уведомления включены" : "Разрешить уведомления"}
+        </button>
+      </section>
+
+      <section className="glass p-5">
         <h2 className="display text-2xl">пригласи друзей</h2>
         <p className="mt-1 text-sm text-ink-100/80">
-          {ref?.bonuses ?? "Загружаем…"}
+          Поделись ссылкой — пусть твои тоже найдут своих.
         </p>
-
         {ref ? (
           <div className="mt-4 space-y-2">
-            <LinkBox
-              label="ссылка на сайт"
-              link={ref.web_link}
-            />
-            {ref.telegram_link ? (
-              <LinkBox
-                label="ссылка на бота"
-                link={ref.telegram_link}
-              />
-            ) : null}
+            <LinkBox label="реферальная ссылка" link={ref.ref_link} />
+            <p className="text-xs text-ink-200/60">
+              Приглашённых: {ref.count}
+            </p>
           </div>
         ) : null}
-
-        <p className="mt-3 text-xs text-ink-200/60">
-          Приглашённых: {ref?.count ?? 0}
-        </p>
       </section>
 
       <section className="glass p-5">
@@ -55,39 +59,18 @@ export default function SettingsPage() {
           className="btn-ghost mt-4"
           onClick={async () => {
             try {
-              if (me?.hidden) await api.unhide();
-              else await api.hide();
+              await api.updateProfile({ hidden: !me?.hidden });
               await refresh();
-              toast({
+              push({
                 title: me?.hidden ? "Снова видно" : "Анкета спрятана",
               });
             } catch (e) {
-              toast({
-                title: "Ошибка",
-                body: (e as Error).message,
-                tone: "error",
-              });
+              if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
             }
           }}
         >
           {me?.hidden ? "Показать снова" : "Скрыть анкету"}
         </button>
-      </section>
-
-      <section className="glass p-5">
-        <h2 className="display text-2xl">помощь</h2>
-        <p className="mt-1 text-sm text-ink-100/80">
-          Если что-то сломалось или хочешь рассказать про баг — пиши{" "}
-          <a
-            href="https://t.me/sneakerdash_manager"
-            className="text-ember-300 underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            @sneakerdash_manager
-          </a>
-          .
-        </p>
       </section>
 
       <button
@@ -105,6 +88,7 @@ export default function SettingsPage() {
 }
 
 function LinkBox({ label, link }: { label: string; link: string }) {
+  const { push } = useNotifications();
   return (
     <div className="glass-soft flex items-center justify-between gap-2 px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -117,9 +101,9 @@ function LinkBox({ label, link }: { label: string; link: string }) {
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(link);
-            toast({ title: "Скопировано" });
+            push({ title: "Скопировано" });
           } catch {
-            toast({ title: "Не удалось скопировать", tone: "error" });
+            push({ title: "Не удалось скопировать" });
           }
         }}
       >
