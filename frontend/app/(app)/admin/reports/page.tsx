@@ -50,7 +50,7 @@ export default function AdminReportsPage() {
                   </Link>
                 </div>
                 <div className="mt-1 text-[11px] text-ink-200/60">
-                  {new Date(r.at).toLocaleString("ru-RU")}
+                  {new Date(r.at * 1000).toLocaleString("ru-RU")}
                 </div>
               </div>
               <span

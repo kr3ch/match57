@@ -7,12 +7,15 @@ the Telegram bot.
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import FRONTEND_ORIGIN
-from app.middleware import BanAndRateLimitMiddleware
-from app.routers import (
+load_dotenv()
+
+from app.config import FRONTEND_ORIGIN  # noqa: E402
+from app.middleware import BanAndRateLimitMiddleware  # noqa: E402
+from app.routers import (  # noqa: E402
     admin,
     auth,
     browse,
