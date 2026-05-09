@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import useSWR from "swr";
-import { api } from "@/lib/api";
+
+import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
-import { toast } from "@/components/Toaster";
+import { useNotifications } from "@/components/providers/NotificationProvider";
 
 export default function SkippedPage() {
+  const { push } = useNotifications();
   const { data, mutate, isLoading } = useSWR("skipped", () => api.skipped());
   const [busy, setBusy] = useState<number | null>(null);
-  const [clearing, setClearing] = useState(false);
 
   const items = data?.items ?? [];
 
@@ -23,26 +24,6 @@ export default function SkippedPage() {
             Те, кого ты пропустил. Можно дать второй шанс.
           </p>
         </div>
-        {items.length > 0 ? (
-          <button
-            type="button"
-            disabled={clearing}
-            className="btn-ghost text-rose-200 disabled:opacity-40"
-            onClick={async () => {
-              if (!confirm("Очистить весь список отвергнутых?")) return;
-              setClearing(true);
-              try {
-                const r = await api.clearSkipped();
-                toast({ title: `Очищено: ${r.removed}` });
-                await mutate();
-              } finally {
-                setClearing(false);
-              }
-            }}
-          >
-            очистить
-          </button>
-        ) : null}
       </header>
 
       {isLoading && <p className="text-ink-200/60">Грузим…</p>}
@@ -56,7 +37,7 @@ export default function SkippedPage() {
       ) : null}
 
       <ul className="grid gap-3 sm:grid-cols-2">
-        {items.map((p) => (
+        {items.map(({ user: p }) => (
           <motion.li
             layout
             key={p.user_id}
@@ -65,9 +46,9 @@ export default function SkippedPage() {
             className="glass relative overflow-hidden p-3"
           >
             <div className="aspect-[3/4] overflow-hidden rounded-2xl">
-              {p.photos[0]?.type === "video" ? (
+              {p.photos[0]?.kind === "video" ? (
                 <video
-                  src={mediaUrl(p.photos[0].file_id)}
+                  src={mediaUrl(p.photos[0].user_id, p.photos[0].filename)}
                   className="h-full w-full object-cover"
                   autoPlay
                   loop
@@ -77,7 +58,7 @@ export default function SkippedPage() {
               ) : p.photos[0] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={mediaUrl(p.photos[0].file_id)}
+                  src={mediaUrl(p.photos[0].user_id, p.photos[0].filename)}
                   alt=""
                   className="h-full w-full object-cover"
                 />
@@ -102,25 +83,17 @@ export default function SkippedPage() {
               onClick={async () => {
                 setBusy(p.user_id);
                 try {
-                  const r = await api.like(p.user_id);
-                  if (r.match) {
-                    toast({
-                      title: "Мэтч!",
-                      body: r.contact ?? "",
-                      tone: "match",
-                    });
-                  } else {
-                    toast({ title: "Лайк отправлен" });
-                  }
+                  await api.undoSkip(p.user_id);
+                  push({ title: "Вернули в стек" });
                   await mutate();
                 } catch (e) {
-                  toast({ title: "Ошибка", body: (e as Error).message, tone: "error" });
+                  if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
                 } finally {
                   setBusy(null);
                 }
               }}
             >
-              ❤ дать шанс
+              ↺ вернуть в стек
             </button>
           </motion.li>
         ))}

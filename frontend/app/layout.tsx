@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { body, display } from "./fonts";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { NotificationProvider } from "@/components/providers/NotificationProvider";
+import { RealtimeProvider } from "@/components/providers/RealtimeProvider";
 import { Toaster } from "@/components/Toaster";
 import "./globals.css";
 
@@ -31,8 +33,12 @@ export default function RootLayout({
     >
       <body>
         <AuthProvider>
-          {children}
-          <Toaster />
+          <RealtimeProvider>
+            <NotificationProvider>
+              {children}
+              <Toaster />
+            </NotificationProvider>
+          </RealtimeProvider>
         </AuthProvider>
       </body>
     </html>

@@ -1,56 +1,99 @@
-"""Likes + browse logic equivalence with bot.py."""
+"""Browse + likes + match logic."""
 
 from __future__ import annotations
 
-from app.db import Database
-from app.services.likes import add_dislike, do_like
-from app.services.profiles import filter_candidates
+import pytest
+from httpx import AsyncClient
+
+from tests.conftest import register_user
 
 
-def make_profile(uid, gender="Парень", looking_for="Все равно"):
-    return {
-        "user_id": uid,
-        "username": f"u{uid}",
-        "age": 18,
-        "gender": gender,
-        "looking_for": looking_for,
-        "name": f"User{uid}",
-        "description": "",
-        "photos": [],
-        "phone": "",
-        "created_at": "2024-01-01T00:00:00",
-        "likes_sent": [],
-        "likes_received": [],
-        "matches": [],
-        "dislikes": [],
-        "hidden": False,
-    }
+@pytest.mark.asyncio
+async def test_browse_empty(client: AsyncClient):
+    await register_user(client)
+    resp = await client.get("/api/browse")
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
 
 
-def test_do_like_creates_match(tmp_path):
-    db = Database(str(tmp_path / "db.json"))
-    db.add_user(1, make_profile(1))
-    db.add_user(2, make_profile(2))
-    assert do_like(db, 1, 2) is False
-    assert do_like(db, 2, 1) is True
-    assert 2 in db.get_user(1)["matches"]
-    assert 1 in db.get_user(2)["matches"]
+@pytest.mark.asyncio
+async def test_like_and_match(client: AsyncClient):
+    # Register user A.
+    await register_user(
+        client, email="a@test.com", name="A", gender="Парень", looking_for="Девушки"
+    )
+    cookie_a = client.cookies.get("match57_session")
+    await client.post("/api/auth/logout")
+
+    # Register user B.
+    await register_user(client, email="b@test.com", name="B", gender="Девушка", looking_for="Парни")
+    cookie_b = client.cookies.get("match57_session")
+
+    # B → browse → sees A.
+    resp = await client.get("/api/browse")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert any(i["name"] == "A" for i in items)
+
+    a_id = [i for i in items if i["name"] == "A"][0]["user_id"]
+
+    # B likes A → no match yet (A hasn't liked B).
+    resp = await client.post("/api/likes", json={"target_id": a_id})
+    assert resp.status_code == 200
+    assert resp.json()["matched"] is False
+
+    # Switch to A.
+    client.cookies.set("match57_session", cookie_a)
+
+    # A browses → sees B.
+    resp = await client.get("/api/browse")
+    items = resp.json()["items"]
+    assert any(i["name"] == "B" for i in items)
+    b_id = [i for i in items if i["name"] == "B"][0]["user_id"]
+
+    # A likes B → MATCH.
+    resp = await client.post("/api/likes", json={"target_id": b_id})
+    assert resp.status_code == 200
+    assert resp.json()["matched"] is True
+    assert resp.json()["conversation_id"] is not None
+
+    # Matches list for A.
+    resp = await client.get("/api/matches")
+    assert resp.status_code == 200
+    assert len(resp.json()["items"]) == 1
+
+    # Switch back to B, also has 1 match.
+    client.cookies.set("match57_session", cookie_b)
+    resp = await client.get("/api/matches")
+    assert len(resp.json()["items"]) == 1
 
 
-def test_filter_excludes_seen_and_self(tmp_path):
-    db = Database(str(tmp_path / "db.json"))
-    db.add_user(1, make_profile(1, looking_for="Все равно"))
-    db.add_user(2, make_profile(2))
-    db.add_user(3, make_profile(3))
-    add_dislike(db, 1, 2)
-    do_like(db, 1, 3)
-    assert filter_candidates(db, 1) == []
+@pytest.mark.asyncio
+async def test_dislike_and_skipped(client: AsyncClient):
+    await register_user(client, email="a@test.com", name="A", looking_for="Все равно")
+    cookie_a = client.cookies.get("match57_session")
+    await client.post("/api/auth/logout")
+    await register_user(client, email="b@test.com", name="B", looking_for="Все равно")
+    client.cookies.set("match57_session", cookie_a)
 
+    items = (await client.get("/api/browse")).json()["items"]
+    b_id = items[0]["user_id"]
 
-def test_filter_by_gender(tmp_path):
-    db = Database(str(tmp_path / "db.json"))
-    db.add_user(1, make_profile(1, looking_for="Девушки"))
-    db.add_user(2, make_profile(2, gender="Парень"))
-    db.add_user(3, make_profile(3, gender="Девушка"))
-    candidates = filter_candidates(db, 1)
-    assert {p["user_id"] for p in candidates} == {3}
+    resp = await client.post("/api/dislikes", json={"target_id": b_id})
+    assert resp.status_code == 200
+
+    # Should not appear in browse anymore.
+    items = (await client.get("/api/browse")).json()["items"]
+    assert not any(i["user_id"] == b_id for i in items)
+
+    # Should appear in /skipped.
+    resp = await client.get("/api/skipped")
+    assert any(i["user"]["user_id"] == b_id for i in resp.json()["items"])
+
+    # Undo.
+    resp = await client.post("/api/skipped/undo", json={"target_id": b_id})
+    assert resp.status_code == 200
+
+    # Back in browse.
+    items = (await client.get("/api/browse")).json()["items"]
+    assert any(i["user_id"] == b_id for i in items)

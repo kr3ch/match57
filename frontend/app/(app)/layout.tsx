@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -11,15 +9,8 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const { me, loading } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (loading) return;
-    if (!me) router.replace("/");
-    else if (!me.registered) router.replace("/register");
-  }, [me, loading, router]);
-
-  if (loading) {
+  if (loading || !me) {
     return (
       <main className="flex min-h-dvh items-center justify-center">
         <div className="display animate-pulse text-2xl text-ink-200/60">
@@ -27,9 +18,6 @@ export default function AppLayout({
         </div>
       </main>
     );
-  }
-  if (!me || !me.registered) {
-    return null;
   }
 
   return (

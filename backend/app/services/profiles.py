@@ -1,102 +1,92 @@
-"""Browse / recommendation logic, ported from ``show_next_profile`` in bot.py.
-
-Pure functions: take a Database + user_id, return a profile or ``None``. The
-state-machine bookkeeping (current_profile_index, viewing_user_id) lives on
-the API consumer side -- on the web that's a per-session cursor stored in a
-cookie or in memory; in the bot it stays in FSMContext.
-"""
+"""Profile-card serialisation and browse-deck filtering."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.db import Database
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.config import LOOKING_FOR_CHOICES
+from app.db.models import Like, Photo, User
 
 
-def filter_candidates(db: Database, user_id: int) -> list[dict[str, Any]]:
-    """All profiles eligible to be shown to ``user_id`` right now.
-
-    Matches the filtering used in bot.py:show_next_profile:
-      * looking_for narrows by gender ("Девушки" / "Парни" / "Все равно"),
-      * never show banned, hidden or self profiles,
-      * exclude already-liked and already-disliked candidates.
-    """
-    user_profile = db.get_user(user_id)
-    if not user_profile:
-        return []
-
-    all_profiles = db.get_all_profiles(user_id)
-    looking_for = user_profile.get("looking_for", "Все равно")
-    if looking_for == "Девушки":
-        profiles = [p for p in all_profiles if p.get("gender") == "Девушка"]
-    elif looking_for == "Парни":
-        profiles = [p for p in all_profiles if p.get("gender") == "Парень"]
-    else:
-        profiles = list(all_profiles)
-
-    already_seen = set(user_profile.get("likes_sent", [])) | set(user_profile.get("dislikes", []))
-    return [p for p in profiles if p["user_id"] not in already_seen]
-
-
-def get_profile_at(db: Database, user_id: int, index: int) -> dict[str, Any] | None:
-    """Return the profile at position ``index`` in the filtered list.
-
-    Wraps around the way the bot does (resets to 0 when overflowing).
-    Returns ``None`` when there are no candidates at all.
-    """
-    candidates = filter_candidates(db, user_id)
-    if not candidates:
-        return None
-    if index < 0 or index >= len(candidates):
-        index = 0
-    return candidates[index]
-
-
-def list_skipped(db: Database, user_id: int) -> list[dict[str, Any]]:
-    """Profiles in user.dislikes still worth re-showing.
-
-    Excludes those already liked since (matches bot.py:show_skipped_profile)
-    and those whose accounts no longer exist.
-    """
-    user_profile = db.get_user(user_id)
-    if not user_profile:
-        return []
-    dislikes = user_profile.get("dislikes", [])
-    likes_sent = set(user_profile.get("likes_sent", []))
-    out: list[dict[str, Any]] = []
-    for uid in dislikes:
-        p = db.get_user(uid)
-        if p and uid not in likes_sent:
-            out.append(p)
+async def serialize_user(
+    db: AsyncSession, user: User, *, include_phone: bool = False
+) -> dict[str, Any]:
+    """Public profile shape used everywhere on the frontend."""
+    res = await db.execute(select(Photo).where(Photo.user_id == user.id).order_by(Photo.position))
+    photos = []
+    for p in res.scalars():
+        photos.append(
+            {
+                "id": p.id,
+                "filename": p.filename,
+                "kind": p.kind,
+                "mime": p.mime_type,
+                "duration_ms": p.duration_ms,
+                "width": p.width,
+                "height": p.height,
+                "user_id": user.id,
+            }
+        )
+    out = {
+        "user_id": user.id,
+        "name": user.name,
+        "age": user.age,
+        "gender": user.gender,
+        "looking_for": user.looking_for,
+        "description": user.description,
+        "school": user.school,
+        "username": user.username,
+        "is_admin": user.is_admin,
+        "hidden": user.hidden,
+        "banned": user.banned,
+        "photos": photos,
+        "last_seen_at": user.last_seen_at.isoformat() if user.last_seen_at else None,
+    }
+    if include_phone:
+        out["phone"] = user.phone
     return out
 
 
-def clear_skipped(db: Database, user_id: int) -> int:
-    user_profile = db.get_user(user_id)
-    if not user_profile:
-        return 0
-    removed = len(user_profile.get("dislikes", []))
-    user_profile["dislikes"] = []
-    db.update_user(user_id, user_profile)
-    return removed
+async def candidates_for(db: AsyncSession, user: User) -> list[User]:
+    """Profiles eligible for ``user``'s swipe deck.
+
+    Mirrors the legacy filter:
+      * filter by ``looking_for``,
+      * exclude banned/hidden/self,
+      * exclude already-liked or already-disliked.
+    """
+    if user.looking_for not in LOOKING_FOR_CHOICES:
+        return []
+
+    seen = await db.execute(select(Like.to_user_id).where(Like.from_user_id == user.id))
+    seen_ids = {row[0] for row in seen}
+    seen_ids.add(user.id)
+
+    stmt = (
+        select(User)
+        .where(User.banned.is_(False), User.hidden.is_(False), ~User.id.in_(seen_ids))
+        .options(selectinload(User.photos))
+    )
+    if user.looking_for == "Девушки":
+        stmt = stmt.where(User.gender == "Девушка")
+    elif user.looking_for == "Парни":
+        stmt = stmt.where(User.gender == "Парень")
+    stmt = stmt.order_by(User.last_seen_at.desc())
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
-def hide_profile(db: Database, user_id: int) -> None:
-    user_profile = db.get_user(user_id)
-    if user_profile:
-        user_profile["hidden"] = True
-        db.update_user(user_id, user_profile)
+async def candidate_at(db: AsyncSession, user: User, index: int) -> User | None:
+    cands = await candidates_for(db, user)
+    if not cands:
+        return None
+    if index < 0 or index >= len(cands):
+        index = 0
+    return cands[index]
 
 
-def unhide_profile(db: Database, user_id: int) -> None:
-    user_profile = db.get_user(user_id)
-    if user_profile and user_profile.get("hidden"):
-        user_profile["hidden"] = False
-        db.update_user(user_id, user_profile)
-
-
-def build_caption(profile: dict[str, Any]) -> str:
-    caption = f"{profile['name']}, {profile['age']}"
-    if profile.get("description"):
-        caption += f"\n\n{profile['description']}"
-    return caption
+__all__ = ["candidate_at", "candidates_for", "serialize_user"]

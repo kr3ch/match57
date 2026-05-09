@@ -1,61 +1,66 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
+import { APIError, api, type RegisterPayload } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { mediaUrl } from "@/lib/media";
-import { toast } from "@/components/Toaster";
-import type {
-  Gender,
-  LookingFor,
-  PhotoMedia,
-} from "@/lib/types";
+import type { Gender, LookingFor } from "@/lib/types";
 
 type Step =
   | "agreement"
-  | "privacy"
+  | "credentials"
+  | "name"
   | "age"
   | "gender"
   | "looking_for"
-  | "name"
   | "description"
-  | "photos"
-  | "phone"
   | "review";
 
 const ORDER: Step[] = [
   "agreement",
-  "privacy",
+  "credentials",
+  "name",
   "age",
   "gender",
   "looking_for",
-  "name",
   "description",
-  "photos",
-  "phone",
   "review",
 ];
 
 export default function RegisterPage() {
-  const { me, loading, refresh } = useAuth();
+  return (
+    <Suspense fallback={null}>
+      <RegisterWizard />
+    </Suspense>
+  );
+}
+
+function RegisterWizard() {
+  const { me, loading, setMe } = useAuth();
   const router = useRouter();
+  const params = useSearchParams();
+  const ref = params?.get("ref");
+  const refId = ref ? Number(ref) || undefined : undefined;
+
   const [step, setStep] = useState<Step>("agreement");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [age, setAge] = useState<number>(16);
   const [gender, setGender] = useState<Gender | null>(null);
   const [lookingFor, setLookingFor] = useState<LookingFor | null>(null);
-  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [photos, setPhotos] = useState<PhotoMedia[]>([]);
   const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (loading) return;
-    if (!me) router.replace("/");
-    else if (me.registered) router.replace("/swipe");
+    if (me) router.replace("/swipe");
   }, [loading, me, router]);
 
   const idx = ORDER.indexOf(step);
@@ -63,45 +68,45 @@ export default function RegisterPage() {
   const back = () => setStep(ORDER[Math.max(idx - 1, 0)]);
 
   const canProceed = useMemo(() => {
+    if (step === "credentials")
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 6;
+    if (step === "name") return name.trim().length > 0;
     if (step === "age") return age >= 14 && age <= 100;
     if (step === "gender") return !!gender;
     if (step === "looking_for") return !!lookingFor;
-    if (step === "name") return name.trim().length > 0;
-    if (step === "photos") return photos.length > 0;
-    if (step === "phone") return phone.trim().length >= 3;
     return true;
-  }, [step, age, gender, lookingFor, name, photos, phone]);
-
-  async function uploadFile(file: File, kind: "photo" | "video") {
-    setUploading(true);
-    try {
-      const r = await api.uploadPhoto(file, kind);
-      setPhotos((p) => [...p, r].slice(0, 3));
-    } catch (e) {
-      toast({ title: "Загрузка не удалась", body: (e as Error).message, tone: "error" });
-    } finally {
-      setUploading(false);
-    }
-  }
+  }, [step, email, password, name, age, gender, lookingFor]);
 
   async function submit() {
     if (!gender || !lookingFor) return;
+    setError(null);
     setSubmitting(true);
+    const payload: RegisterPayload = {
+      email: email.trim().toLowerCase(),
+      password,
+      username: username.trim() || undefined,
+      name: name.trim(),
+      age,
+      gender,
+      looking_for: lookingFor,
+      description: description.trim() || undefined,
+      phone: phone.trim() || undefined,
+      ref: refId,
+    };
     try {
-      await api.register({
-        age,
-        gender,
-        looking_for: lookingFor,
-        name: name.trim(),
-        description: description.trim(),
-        photos,
-        phone: phone.trim(),
-      } as never);
-      await refresh();
-      toast({ title: "Анкета готова", body: "Поехали свайпать." });
-      router.replace("/swipe");
+      const res = await api.register(payload);
+      setMe(res.user);
+      router.replace("/profile/edit?welcome=1");
     } catch (e) {
-      toast({ title: "Не удалось сохранить", body: (e as Error).message, tone: "error" });
+      if (e instanceof APIError) {
+        if (e.status === 409 && e.detail === "user_exists")
+          setError("Email уже зарегистрирован");
+        else if (e.status === 409 && e.detail === "username_taken")
+          setError("Это имя пользователя занято");
+        else setError(e.detail);
+      } else {
+        setError("Сетевая ошибка");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -109,6 +114,9 @@ export default function RegisterPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 px-5 pb-24 pt-8 sm:pt-16">
+      <Link href="/" className="display text-2xl">
+        MATCH<span className="text-ember-400"> 57</span>
+      </Link>
       <header>
         <span className="pill">шаг {idx + 1} / {ORDER.length}</span>
         <div className="mt-3 flex h-1 overflow-hidden rounded-full bg-white/10">
@@ -136,248 +144,184 @@ export default function RegisterPage() {
               kicker="у нас тут пара правил"
               text="Тебе должно быть от 14 лет, ты учишься (или учился) в 57-й, и ты будешь вести себя по-человечески. Нарушаешь — баним без объяснений."
             >
-              <Choices
-                options={[
-                  { id: "ok", label: "Понятно" },
-                  { id: "no", label: "Нет, я не из 57", danger: true },
-                ]}
-                onSelect={(id) => {
-                  if (id === "no") {
-                    toast({ title: "Тогда тебе сюда не надо :)", tone: "error" });
-                    return;
-                  }
-                  next();
-                }}
-              />
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button className="btn-primary" onClick={next}>
+                  Понятно, продолжить
+                </button>
+                <Link href="/" className="btn-ghost">
+                  Передумал
+                </Link>
+              </div>
             </Step>
           )}
 
-          {step === "privacy" && (
+          {step === "credentials" && (
             <Step
-              title="Что будет видно?"
-              kicker="спойлер: только то, что ты сам напишешь"
-              text="Имя, возраст, до 3 фото и пара слов о себе. Username и Telegram-ID ты не отдаёшь напрямую — мы сами свяжем вас при взаимной симпатии."
+              title="Email и пароль"
+              kicker="как ты будешь логиниться"
+              text="Email нужен для входа и восстановления. Пароль — минимум 6 символов."
             >
-              <Choices
-                options={[
-                  { id: "ok", label: "Окей, дальше →" },
-                  { id: "skip", label: "Без меня", danger: true },
-                ]}
-                onSelect={(id) => (id === "ok" ? next() : router.replace("/"))}
-              />
-            </Step>
-          )}
-
-          {step === "age" && (
-            <Step title="Сколько тебе?" kicker="14–100, всё честно">
-              <input
-                type="number"
-                min={14}
-                max={100}
-                value={age}
-                onChange={(e) => setAge(Number(e.target.value))}
-                className="input text-center text-3xl"
-              />
-            </Step>
-          )}
-
-          {step === "gender" && (
-            <Step title="Ты —" kicker="мы не запоминаем больше нужного">
-              <Choices
-                options={[
-                  { id: "Парень", label: "Парень" },
-                  { id: "Девушка", label: "Девушка" },
-                ]}
-                onSelect={(id) => {
-                  setGender(id as Gender);
-                  next();
-                }}
-                selected={gender ?? undefined}
-              />
-            </Step>
-          )}
-
-          {step === "looking_for" && (
-            <Step title="Ищу" kicker="свайпы будут отфильтрованы">
-              <Choices
-                options={[
-                  { id: "Девушки", label: "Девушек" },
-                  { id: "Парни", label: "Парней" },
-                  { id: "Все равно", label: "Всё равно" },
-                ]}
-                onSelect={(id) => {
-                  setLookingFor(id as LookingFor);
-                  next();
-                }}
-                selected={lookingFor ?? undefined}
-              />
+              <div className="flex flex-col gap-3">
+                <input
+                  type="email"
+                  autoComplete="email"
+                  className="input"
+                  placeholder="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  className="input"
+                  placeholder="пароль (минимум 6 символов)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <input
+                  className="input"
+                  placeholder="имя пользователя (опционально, латиница, для ссылок)"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_]/g, "")
+                        .slice(0, 32),
+                    )
+                  }
+                />
+                <Nav back={back} next={next} canProceed={canProceed} />
+              </div>
             </Step>
           )}
 
           {step === "name" && (
-            <Step title="Как тебя зовут?" kicker="можно настоящее, можно никнейм">
-              <input
-                value={name}
-                maxLength={64}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Лиза"
-                className="input"
-                autoFocus
-              />
+            <Step title="Как тебя зовут?" kicker="имя или ник">
+              <div className="flex flex-col gap-3">
+                <input
+                  className="input"
+                  placeholder="имя"
+                  value={name}
+                  onChange={(e) => setName(e.target.value.slice(0, 50))}
+                />
+                <Nav back={back} next={next} canProceed={canProceed} />
+              </div>
+            </Step>
+          )}
+
+          {step === "age" && (
+            <Step title="Сколько тебе лет?" kicker="14-100">
+              <div className="flex flex-col gap-3">
+                <input
+                  type="number"
+                  min={14}
+                  max={100}
+                  className="input"
+                  value={age}
+                  onChange={(e) => setAge(Number(e.target.value) || 14)}
+                />
+                <Nav back={back} next={next} canProceed={canProceed} />
+              </div>
+            </Step>
+          )}
+
+          {step === "gender" && (
+            <Step title="Ты…" kicker="один тап">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(["Парень", "Девушка"] as Gender[]).map((g) => (
+                  <button
+                    key={g}
+                    className={`glass-soft p-6 text-lg ${gender === g ? "ring-2 ring-ember-500" : ""}`}
+                    onClick={() => {
+                      setGender(g);
+                      next();
+                    }}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+              <Nav back={back} next={next} canProceed={canProceed} />
+            </Step>
+          )}
+
+          {step === "looking_for" && (
+            <Step title="Кого ищешь?">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {(["Парни", "Девушки", "Все равно"] as LookingFor[]).map((g) => (
+                  <button
+                    key={g}
+                    className={`glass-soft p-6 text-lg ${lookingFor === g ? "ring-2 ring-ember-500" : ""}`}
+                    onClick={() => {
+                      setLookingFor(g);
+                      next();
+                    }}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+              <Nav back={back} next={next} canProceed={canProceed} />
             </Step>
           )}
 
           {step === "description" && (
-            <Step title="Расскажи о себе" kicker="что-то весёлое или серьёзное — твой выбор">
-              <textarea
-                value={description}
-                maxLength={2000}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Учусь в 11-Б, играю в шахматы и пеку медовик. Ищу того, кто умеет смеяться и не боится клавы…"
-                className="input min-h-40"
-              />
-              <div className="text-right text-xs text-ink-200/60">
-                {description.length} / 2000
+            <Step title="Расскажи о себе" kicker="можно пропустить">
+              <div className="flex flex-col gap-3">
+                <textarea
+                  className="input min-h-[120px]"
+                  placeholder="что любишь, чем занимаешься, что ищешь…"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+                />
+                <input
+                  className="input"
+                  placeholder="телефон (опционально, видят только мэтчи)"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.slice(0, 30))}
+                />
+                <Nav back={back} next={next} canProceed={canProceed} />
               </div>
-            </Step>
-          )}
-
-          {step === "photos" && (
-            <Step
-              title="До 3 фото или одно видео"
-              kicker="без скринов и пейзажей"
-            >
-              <div className="grid grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => {
-                  const p = photos[i];
-                  return (
-                    <div
-                      key={i}
-                      className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-dashed border-white/15 bg-white/5"
-                    >
-                      {p ? (
-                        <>
-                          {p.type === "video" ? (
-                            <video
-                              src={mediaUrl(p.file_id)}
-                              className="h-full w-full object-cover"
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={mediaUrl(p.file_id)}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          )}
-                          <button
-                            type="button"
-                            className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white"
-                            onClick={() =>
-                              setPhotos((arr) => arr.filter((_, idx) => idx !== i))
-                            }
-                          >
-                            ✕
-                          </button>
-                        </>
-                      ) : (
-                        <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 text-xs text-ink-200/60">
-                          <span className="text-2xl">＋</span>
-                          добавить
-                          <input
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
-                              await uploadFile(
-                                f,
-                                f.type.startsWith("video") ? "video" : "photo",
-                              );
-                              e.target.value = "";
-                            }}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {uploading ? (
-                <p className="text-sm text-ink-100/80">Загружаем в Telegram…</p>
-              ) : null}
-            </Step>
-          )}
-
-          {step === "phone" && (
-            <Step
-              title="Контакт"
-              kicker="увидят только при взаимной симпатии"
-              text="Можно ввести Telegram-username или номер. Это покажется матчу как «как со мной связаться»."
-            >
-              <input
-                value={phone}
-                maxLength={32}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="@username или +7 ..."
-                className="input"
-              />
             </Step>
           )}
 
           {step === "review" && (
-            <Step
-              title="Готово?"
-              kicker="всё можно поменять потом"
-              text=""
-            >
-              <div className="glass-soft space-y-2 px-4 py-4 text-sm">
-                <Row k="Возраст" v={String(age)} />
-                <Row k="Пол" v={gender ?? "?"} />
-                <Row k="Ищет" v={lookingFor ?? "?"} />
-                <Row k="Имя" v={name} />
-                <Row k="Описание" v={description || "—"} />
-                <Row k="Фото" v={`${photos.length} шт.`} />
-                <Row k="Контакт" v={phone} />
+            <Step title="Готово?" kicker="последний взгляд">
+              <div className="glass-soft mt-2 grid gap-2 p-5 text-sm">
+                <Row k="email" v={email} />
+                {username && <Row k="username" v={`@${username}`} />}
+                <Row k="имя" v={name} />
+                <Row k="возраст" v={String(age)} />
+                <Row k="пол" v={gender || "—"} />
+                <Row k="ищу" v={lookingFor || "—"} />
+                {description && <Row k="о себе" v={description} />}
+                {phone && <Row k="телефон" v={phone} />}
               </div>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={submitting}
-                className="btn-primary"
-              >
-                {submitting ? "Сохраняем…" : "Опубликовать анкету"}
-              </button>
+              {error && (
+                <p className="rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">
+                  {error}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button className="btn-ghost flex-1" onClick={back} type="button">
+                  Назад
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={submit}
+                  disabled={submitting}
+                >
+                  {submitting ? "Сохраняем…" : "Зарегистрироваться"}
+                </button>
+              </div>
+              <p className="mt-2 text-center text-xs text-ink-100/60">
+                Дальше попросим добавить фото в профиле.
+              </p>
             </Step>
           )}
         </motion.section>
       </AnimatePresence>
-
-      <nav className="mt-auto flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={back}
-          disabled={idx === 0}
-          className="btn-ghost disabled:opacity-30"
-        >
-          ← назад
-        </button>
-        {step !== "review" && step !== "agreement" && step !== "privacy" && (
-          <button
-            type="button"
-            onClick={next}
-            disabled={!canProceed}
-            className="btn-primary disabled:opacity-40"
-          >
-            дальше →
-          </button>
-        )}
-      </nav>
     </main>
   );
 }
@@ -391,53 +335,49 @@ function Step({
   title: string;
   kicker?: string;
   text?: string;
-  children?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      {kicker ? <span className="label">{kicker}</span> : null}
-      <h2 className="display text-balance text-4xl leading-tight sm:text-5xl">
-        {title}
-      </h2>
-      {text ? <p className="text-ink-100/80">{text}</p> : null}
-      <div className="mt-2 flex flex-col gap-3">{children}</div>
+    <div className="flex flex-1 flex-col gap-4">
+      {kicker && <span className="label">{kicker}</span>}
+      <h2 className="display text-3xl sm:text-5xl">{title}</h2>
+      {text && <p className="text-ink-100/80">{text}</p>}
+      <div className="mt-3">{children}</div>
     </div>
   );
 }
 
-function Choices({
-  options,
-  onSelect,
-  selected,
+function Nav({
+  back,
+  next,
+  canProceed,
 }: {
-  options: { id: string; label: string; danger?: boolean }[];
-  onSelect: (id: string) => void;
-  selected?: string;
+  back: () => void;
+  next: () => void;
+  canProceed: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onSelect(o.id)}
-          className={`btn-ghost justify-between ${
-            selected === o.id ? "border-ember-400/60 bg-ember-500/10" : ""
-          } ${o.danger ? "border-rose-300/30 text-rose-200" : ""}`}
-        >
-          <span>{o.label}</span>
-          <span className="opacity-60">→</span>
-        </button>
-      ))}
+    <div className="flex gap-3">
+      <button className="btn-ghost flex-1" onClick={back} type="button">
+        Назад
+      </button>
+      <button
+        className="btn-primary flex-1"
+        onClick={next}
+        disabled={!canProceed}
+        type="button"
+      >
+        Далее
+      </button>
     </div>
   );
 }
 
 function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="label">{k}</span>
-      <span className="text-right text-ink-50">{v}</span>
+    <div className="flex justify-between gap-3 border-b border-white/5 py-1.5 last:border-0">
+      <span className="text-ink-100/60">{k}</span>
+      <span className="truncate text-right">{v}</span>
     </div>
   );
 }

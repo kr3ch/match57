@@ -1,61 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
+
+import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
-import { toast } from "@/components/Toaster";
-import type { PhotoMedia, Profile } from "@/lib/types";
+import { useNotifications } from "@/components/providers/NotificationProvider";
+import type { Me } from "@/lib/types";
 
 export default function EditProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  return (
+    <Suspense fallback={null}>
+      <EditProfile />
+    </Suspense>
+  );
+}
+
+function EditProfile() {
+  const params = useSearchParams();
+  const welcome = params?.get("welcome") === "1";
+  const { push } = useNotifications();
+  const [profile, setProfile] = useState<Me | null>(null);
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [photos, setPhotos] = useState<PhotoMedia[]>([]);
+  const [phone, setPhone] = useState("");
+  const [age, setAge] = useState<number>(16);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.myProfile().then((p) => {
-      setProfile(p);
-      setDescription(p.description ?? "");
-      setPhotos(p.photos ?? []);
+      setProfile(p.profile);
+      setName(p.profile.name);
+      setDescription(p.profile.description ?? "");
+      setPhone(p.profile.phone ?? "");
+      setAge(p.profile.age);
     });
   }, []);
 
   if (!profile) return <p className="text-ink-200/60">Грузим…</p>;
 
-  async function saveDescription() {
+  async function save() {
     setBusy(true);
     try {
-      const updated = await api.updateDescription(description);
-      setProfile(updated);
-      toast({ title: "Описание сохранено" });
+      const r = await api.updateProfile({
+        name: name.trim() || undefined,
+        description: description.trim(),
+        phone: phone.trim(),
+        age,
+      });
+      setProfile(r.profile);
+      push({ title: "Сохранено" });
     } catch (e) {
-      toast({ title: "Ошибка", body: (e as Error).message, tone: "error" });
+      if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
     } finally {
       setBusy(false);
     }
   }
 
-  async function uploadFile(file: File, kind: "photo" | "video") {
+  async function uploadFile(file: File) {
     setBusy(true);
     try {
-      const r = await api.uploadPhoto(file, kind);
-      setPhotos((arr) => [...arr, r].slice(0, 3));
+      const r = await api.addPhoto(file);
+      setProfile(r.profile);
     } catch (e) {
-      toast({ title: "Не загрузилось", body: (e as Error).message, tone: "error" });
+      if (e instanceof APIError) push({ title: "Не загрузилось", body: e.detail });
     } finally {
       setBusy(false);
     }
   }
 
-  async function savePhotos() {
+  async function removePhoto(photoId: number) {
     setBusy(true);
     try {
-      const updated = await api.replacePhotos(photos);
-      setProfile(updated);
-      toast({ title: "Фото обновлены" });
+      const r = await api.deletePhoto(photoId);
+      setProfile(r.profile);
     } catch (e) {
-      toast({ title: "Ошибка", body: (e as Error).message, tone: "error" });
+      if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
     } finally {
       setBusy(false);
     }
@@ -64,40 +85,26 @@ export default function EditProfilePage() {
   return (
     <main className="flex flex-col gap-6">
       <header className="flex items-baseline justify-between">
-        <h1 className="display text-4xl">правки</h1>
+        <h1 className="display text-4xl">
+          {welcome ? "финальный штрих" : "правки"}
+        </h1>
         <Link href="/profile" className="btn-ghost">
           ← назад
         </Link>
       </header>
 
-      <section className="glass flex flex-col gap-3 p-5">
-        <h2 className="display text-2xl">описание</h2>
-        <textarea
-          value={description}
-          maxLength={2000}
-          onChange={(e) => setDescription(e.target.value)}
-          className="input min-h-40"
-        />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-ink-200/60">
-            {description.length} / 2000
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={saveDescription}
-            className="btn-primary"
-          >
-            сохранить
-          </button>
-        </div>
-      </section>
+      {welcome && (
+        <p className="glass-soft px-5 py-4 text-sm">
+          Добавь хотя бы одно фото — без фото тебя не покажут в стеке.
+        </p>
+      )}
 
       <section className="glass flex flex-col gap-3 p-5">
         <h2 className="display text-2xl">фото и видео</h2>
+        <p className="text-xs text-ink-200/60">До 3 файлов · фото или короткое видео</p>
         <div className="grid grid-cols-3 gap-3">
           {[0, 1, 2].map((i) => {
-            const p = photos[i];
+            const p = profile.photos[i];
             return (
               <div
                 key={i}
@@ -105,9 +112,9 @@ export default function EditProfilePage() {
               >
                 {p ? (
                   <>
-                    {p.type === "video" ? (
+                    {p.kind === "video" ? (
                       <video
-                        src={mediaUrl(p.file_id)}
+                        src={mediaUrl(p.user_id, p.filename)}
                         className="h-full w-full object-cover"
                         autoPlay
                         loop
@@ -117,7 +124,7 @@ export default function EditProfilePage() {
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={mediaUrl(p.file_id)}
+                        src={mediaUrl(p.user_id, p.filename)}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -125,9 +132,7 @@ export default function EditProfilePage() {
                     <button
                       type="button"
                       className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white"
-                      onClick={() =>
-                        setPhotos((arr) => arr.filter((_, idx) => idx !== i))
-                      }
+                      onClick={() => void removePhoto(p.id)}
                     >
                       ✕
                     </button>
@@ -143,10 +148,7 @@ export default function EditProfilePage() {
                       onChange={async (e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
-                        await uploadFile(
-                          f,
-                          f.type.startsWith("video") ? "video" : "photo",
-                        );
+                        await uploadFile(f);
                         e.target.value = "";
                       }}
                     />
@@ -156,15 +158,58 @@ export default function EditProfilePage() {
             );
           })}
         </div>
-        <button
-          type="button"
-          disabled={busy || photos.length === 0}
-          className="btn-primary self-end disabled:opacity-50"
-          onClick={savePhotos}
-        >
-          применить фото
-        </button>
       </section>
+
+      <section className="glass flex flex-col gap-3 p-5">
+        <h2 className="display text-2xl">данные</h2>
+        <label className="text-xs text-ink-200/70">имя</label>
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value.slice(0, 50))}
+        />
+        <label className="text-xs text-ink-200/70">возраст</label>
+        <input
+          type="number"
+          min={14}
+          max={100}
+          className="input"
+          value={age}
+          onChange={(e) => setAge(Number(e.target.value) || 14)}
+        />
+        <label className="text-xs text-ink-200/70">описание</label>
+        <textarea
+          value={description}
+          maxLength={500}
+          onChange={(e) => setDescription(e.target.value)}
+          className="input min-h-32"
+        />
+        <label className="text-xs text-ink-200/70">телефон (видят только мэтчи)</label>
+        <input
+          className="input"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.slice(0, 30))}
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-ink-200/60">
+            {description.length} / 500
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={save}
+            className="btn-primary"
+          >
+            сохранить
+          </button>
+        </div>
+      </section>
+
+      {welcome && profile.photos.length > 0 && (
+        <Link href="/swipe" className="btn-primary text-center">
+          Поехали свайпать →
+        </Link>
+      )}
     </main>
   );
 }

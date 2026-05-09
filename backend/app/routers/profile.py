@@ -1,103 +1,137 @@
-"""Self-profile endpoints: read, edit description / photos, hide, refill."""
+"""Profile editing + photo management."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from fastapi import APIRouter, HTTPException, UploadFile
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel, Field
+from app.config import (
+    DESCRIPTION_MAX,
+    GENDER_CHOICES,
+    LOOKING_FOR_CHOICES,
+    MAX_AGE,
+    MIN_AGE,
+    NAME_MAX,
+    PROFILE_PHOTO_MAX,
+    USERNAME_MAX,
+)
+from app.db.models import Photo, User
+from app.deps import CurrentUserDep, SessionDep
+from app.services.profiles import serialize_user
+from app.services.uploads import store_upload, upload_path
 
-from app.bot_client import upload_photo_for_storage, upload_video_for_storage
-from app.config import STORAGE_CHAT_ID
-from app.db import Database
-from app.deps import current_profile, current_user_id, db_dep
-from app.services.profiles import hide_profile, unhide_profile
-
-router = APIRouter(prefix="/api/me", tags=["profile"])
+router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 
-class DescriptionUpdate(BaseModel):
-    description: str = Field(max_length=2000)
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=NAME_MAX)
+    age: int | None = Field(default=None, ge=MIN_AGE, le=MAX_AGE)
+    gender: str | None = None
+    looking_for: str | None = None
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
+    school: str | None = Field(default=None, max_length=64)
+    username: str | None = Field(default=None, max_length=USERNAME_MAX)
+    phone: str | None = None
+    hidden: bool | None = None
 
+    @field_validator("gender")
+    @classmethod
+    def _g(cls, v):
+        if v is not None and v not in GENDER_CHOICES:
+            raise ValueError("gender_invalid")
+        return v
 
-class PhotosUpdate(BaseModel):
-    photos: list[dict[str, str]] = Field(min_length=1, max_length=3)
+    @field_validator("looking_for")
+    @classmethod
+    def _lf(cls, v):
+        if v is not None and v not in LOOKING_FOR_CHOICES:
+            raise ValueError("looking_for_invalid")
+        return v
+
+    @field_validator("username")
+    @classmethod
+    def _u(cls, v):
+        if v is None or v == "":
+            return None
+        cleaned = v.strip().lstrip("@")
+        if not all(ch.isalnum() or ch == "_" for ch in cleaned):
+            raise ValueError("username_invalid")
+        return cleaned
 
 
 @router.get("")
-async def get_me(profile: dict[str, Any] = Depends(current_profile)) -> dict[str, Any]:
-    return profile
+async def get_my_profile(user: CurrentUserDep, db: SessionDep) -> dict:
+    return {"profile": await serialize_user(db, user, include_phone=True)}
 
 
-@router.patch("/description")
-async def update_description(
-    payload: DescriptionUpdate,
-    profile: dict[str, Any] = Depends(current_profile),
-    db: Database = Depends(db_dep),
-) -> dict[str, Any]:
-    profile["description"] = payload.description.strip()
-    db.update_user(profile["user_id"], profile)
-    return profile
+@router.patch("")
+async def update_my_profile(payload: ProfileUpdate, user: CurrentUserDep, db: SessionDep) -> dict:
+    if payload.username is not None and payload.username != user.username:
+        clash = await db.scalar(
+            select(User).where(User.username == payload.username, User.id != user.id)
+        )
+        if clash is not None:
+            raise HTTPException(status_code=409, detail="username_taken")
+
+    for field in (
+        "name",
+        "age",
+        "gender",
+        "looking_for",
+        "description",
+        "school",
+        "username",
+        "phone",
+        "hidden",
+    ):
+        v = getattr(payload, field)
+        if v is not None:
+            setattr(user, field, v)
+
+    return {"profile": await serialize_user(db, user, include_phone=True)}
 
 
-@router.put("/photos")
-async def replace_photos(
-    payload: PhotosUpdate,
-    profile: dict[str, Any] = Depends(current_profile),
-    db: Database = Depends(db_dep),
-) -> dict[str, Any]:
-    cleaned: list[dict[str, str]] = []
-    for p in payload.photos:
-        ptype = p.get("type")
-        fid = p.get("file_id")
-        if ptype not in ("photo", "video") or not fid:
-            raise HTTPException(status_code=422, detail="bad_photo")
-        cleaned.append({"type": ptype, "file_id": fid})
-    profile["photos"] = cleaned
-    db.update_user(profile["user_id"], profile)
-    return profile
+@router.post("/photos")
+async def add_photo(
+    file: UploadFile,
+    user: CurrentUserDep,
+    db: SessionDep,
+) -> dict:
+    from sqlalchemy import func
+
+    count_q = await db.scalar(select(func.count(Photo.id)).where(Photo.user_id == user.id))
+    count = int(count_q or 0)
+    if count >= PROFILE_PHOTO_MAX:
+        raise HTTPException(status_code=409, detail="photos_limit_reached")
+    info = await store_upload(file, user.id)
+    if info["kind"] not in ("photo", "video"):
+        upload_path(user.id, info["filename"]).unlink(missing_ok=True)
+        raise HTTPException(status_code=415, detail="profile_supports_photo_or_video_only")
+    photo = Photo(
+        user_id=user.id,
+        filename=info["filename"],
+        mime_type=info["mime"],
+        kind=info["kind"],
+        width=info["width"],
+        height=info["height"],
+        position=count,
+    )
+    db.add(photo)
+    await db.flush()
+    return {"profile": await serialize_user(db, user, include_phone=True)}
 
 
-@router.post("/photos/upload")
-async def upload_photo(
-    kind: Literal["photo", "video"] = Form(...),
-    file: UploadFile = File(...),
-    user_id: int = Depends(current_user_id),
-) -> dict[str, Any]:
-    """Re-upload a web file to a Telegram storage chat to obtain a ``file_id``.
-
-    This keeps the persistence layer using Telegram ``file_id``s (identical
-    schema to bot.py) without forcing a separate object store.
-    """
-    if STORAGE_CHAT_ID == 0:
-        raise HTTPException(status_code=503, detail="storage_chat_not_configured")
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=422, detail="empty_file")
-    if len(content) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="file_too_large")
-    if kind == "photo":
-        file_id = await upload_photo_for_storage(content, STORAGE_CHAT_ID)
-    else:
-        file_id = await upload_video_for_storage(content, STORAGE_CHAT_ID)
-    if not file_id:
-        raise HTTPException(status_code=502, detail="telegram_upload_failed")
-    return {"type": kind, "file_id": file_id}
-
-
-@router.post("/hide")
-async def hide(
-    user_id: int = Depends(current_user_id), db: Database = Depends(db_dep)
-) -> dict[str, str]:
-    """Mirror of '🚪 Я больше не хочу никого искать' (hidden=true)."""
-    hide_profile(db, user_id)
-    return {"ok": "hidden"}
-
-
-@router.post("/unhide")
-async def unhide(
-    user_id: int = Depends(current_user_id), db: Database = Depends(db_dep)
-) -> dict[str, str]:
-    """Re-show a previously hidden profile (mirror of /start auto-unhide)."""
-    unhide_profile(db, user_id)
-    return {"ok": "visible"}
+@router.delete("/photos/{photo_id}")
+async def remove_photo(
+    photo_id: int,
+    user: CurrentUserDep,
+    db: SessionDep,
+) -> dict:
+    photo = await db.get(Photo, photo_id)
+    if photo is None or photo.user_id != user.id:
+        raise HTTPException(status_code=404, detail="photo_not_found")
+    upload_path(user.id, photo.filename).unlink(missing_ok=True)
+    await db.delete(photo)
+    await db.flush()
+    return {"profile": await serialize_user(db, user, include_phone=True)}

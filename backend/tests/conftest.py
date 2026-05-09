@@ -1,65 +1,84 @@
-"""Test fixtures: isolated JSON DB per test, FastAPI client with a mocked
-session cookie so we don't hit Telegram during tests."""
+"""Shared fixtures: in-memory SQLite + test client + auth helpers."""
 
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
+from collections.abc import AsyncIterator
 
-import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# Ensure backend/ is on sys.path
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from app.db.base import Base
+from app.deps import db_session
+
+# ─── In-memory async engine shared across a whole module ────────────────────
+_engine = create_async_engine("sqlite+aiosqlite://", echo=False, future=True)
+_Session = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
 
 
-@pytest.fixture()
-def db_file(tmp_path, monkeypatch):
-    path = tmp_path / "users_db.json"
-    path.write_text(
-        json.dumps({"users": {}, "profiles": [], "banned": [], "reports": []}),
-        encoding="utf-8",
+@pytest_asyncio.fixture(autouse=True)
+async def setup_db():
+    """Create all tables before each test, drop after."""
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+async def _override_db() -> AsyncIterator[AsyncSession]:
+    async with _Session() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+@pytest_asyncio.fixture
+async def app():
+    from app.main import app as _app
+
+    _app.dependency_overrides[db_session] = _override_db
+    yield _app
+    _app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def client(app) -> AsyncIterator[AsyncClient]:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+@pytest_asyncio.fixture
+async def db() -> AsyncIterator[AsyncSession]:
+    async with _Session() as session:
+        yield session
+        await session.commit()
+
+
+# ─── Helper: register + return cookie ──────────────────────────────────────
+async def register_user(
+    client: AsyncClient,
+    email: str = "test@example.com",
+    password: str = "Test1234!",
+    name: str = "Test",
+    age: int = 17,
+    gender: str = "Парень",
+    looking_for: str = "Все равно",
+) -> dict:
+    resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "name": name,
+            "age": age,
+            "gender": gender,
+            "looking_for": looking_for,
+        },
     )
-    monkeypatch.setenv("DB_FILE", str(path))
-    monkeypatch.setenv("BOT_TOKEN", "")  # disable outbound Telegram calls
-    monkeypatch.setenv("STORAGE_CHAT_ID", "0")
-    monkeypatch.setenv("ADMIN_IDS", "1")
-    monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:3000")
-    monkeypatch.setenv("SESSION_SECRET", "test-secret")
-    # Reset module-level singletons so each test gets a fresh Database
-    import app.config as config
-    import app.db as db_mod
-
-    config.BOT_TOKEN = ""
-    config.DB_FILE = str(path)
-    config.ADMIN_IDS = [1]
-    config.STORAGE_CHAT_ID = 0
-    config.SESSION_SECRET = "test-secret"
-    config.FRONTEND_ORIGIN = "http://localhost:3000"
-    config.RATE_LIMIT_SECONDS = 0.0  # disable throttle inside tests
-    db_mod._db_singleton = None
-    yield path
-    db_mod._db_singleton = None
-
-
-@pytest.fixture()
-def app(db_file):
-    from app.main import create_app
-
-    return create_app()
-
-
-@pytest.fixture()
-def client(app):
-    from fastapi.testclient import TestClient
-
-    return TestClient(app)
-
-
-def authed_client(client, user_id: int, username: str | None = "tester"):
-    from app.auth import SESSION_COOKIE, issue_session
-
-    client.cookies.set(SESSION_COOKIE, issue_session(user_id, username))
-    return client
+    assert resp.status_code == 200, resp.text
+    return resp.json()

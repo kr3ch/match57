@@ -1,23 +1,26 @@
 "use client";
 
-import useSWR from "swr";
 import Link from "next/link";
+import useSWR from "swr";
 import { useState } from "react";
+
 import { api } from "@/lib/api";
 
-type Tab = "active" | "likes" | "referrers";
+type Tab = "received" | "matches" | "referrers";
 
 const LABEL: Record<Tab, string> = {
-  active: "Активные",
-  likes: "Топ по лайкам",
-  referrers: "Топ рефереров",
+  received: "Полученные лайки",
+  matches: "Мэтчи",
+  referrers: "Рефереры",
 };
 
 export default function AdminLeaderboardsPage() {
-  const [tab, setTab] = useState<Tab>("active");
-  const { data, isLoading } = useSWR(["admin/top", tab], () =>
-    api.adminTop(tab),
-  );
+  const [tab, setTab] = useState<Tab>("received");
+  const { data, isLoading } = useSWR(["admin/top", tab], () => {
+    if (tab === "received") return api.adminTopReceived();
+    if (tab === "matches") return api.adminTopMatches();
+    return api.adminTopReferrers();
+  });
 
   return (
     <main className="flex flex-col gap-4">
@@ -47,35 +50,22 @@ export default function AdminLeaderboardsPage() {
 
       {isLoading ? <p>Грузим…</p> : null}
       <ol className="flex flex-col gap-2">
-        {(data?.items ?? []).map((u, i) => {
-          const value =
-            tab === "active"
-              ? (u.likes_sent?.length ?? 0) + (u.matches?.length ?? 0)
-              : tab === "likes"
-                ? u.likes_received?.length ?? 0
-                : u.referrals?.length ?? 0;
-          return (
-            <li key={u.user_id} className="glass flex items-center gap-3 p-4">
-              <span className="display text-3xl text-ember-300/70">
-                {i + 1}
-              </span>
-              <div className="flex-1">
-                <Link
-                  href={`/admin/users/${u.user_id}`}
-                  className="display text-xl underline-offset-2 hover:underline"
-                >
-                  {u.name}, {u.age}
-                </Link>
-                <div className="text-xs text-ink-200/70">
-                  {u.username ? `@${u.username}` : `id:${u.user_id}`}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="display text-2xl">{value}</div>
-              </div>
-            </li>
-          );
-        })}
+        {(data?.items ?? []).map((row, i) => (
+          <li key={row.user_id} className="glass flex items-center gap-3 p-4">
+            <span className="display text-3xl text-ember-300/70">{i + 1}</span>
+            <div className="flex-1">
+              <Link
+                href={`/admin/users/${row.user_id}`}
+                className="display text-xl underline-offset-2 hover:underline"
+              >
+                id:{row.user_id}
+              </Link>
+            </div>
+            <div className="text-right">
+              <div className="display text-2xl">{row.count}</div>
+            </div>
+          </li>
+        ))}
       </ol>
     </main>
   );
