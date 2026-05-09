@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next
+node_modules/
+.next/
+out/
+.vercel/
+dist/
+
+# Local data / secrets
+.env
+.env.local
+.env.*.local
+data/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+
+# Build artefacts
+*.tsbuildinfo
+
+# Original code dump kept for reference only
+bot.py.original.txt
