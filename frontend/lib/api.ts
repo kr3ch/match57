@@ -46,15 +46,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail =
-        typeof body.detail === "string"
-          ? body.detail
-          : body.message || JSON.stringify(body);
-    } catch {
-      detail = await res.text();
+    // Read body once as text, then try to parse as JSON. Calling
+    // ``res.json()`` first and then ``res.text()`` in the catch branch
+    // throws ``body stream already read`` because fetch responses can
+    // only be consumed once.
+    const raw = await res.text();
+    let detail = raw;
+    if (raw) {
+      try {
+        const body = JSON.parse(raw);
+        detail =
+          typeof body.detail === "string"
+            ? body.detail
+            : body.message || JSON.stringify(body);
+      } catch {
+        // not JSON — keep ``raw`` as-is
+      }
     }
     throw new APIError(res.status, detail || `HTTP ${res.status}`);
   }
@@ -69,12 +76,15 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = body.detail || JSON.stringify(body);
-    } catch {
-      detail = await res.text();
+    const raw = await res.text();
+    let detail = raw;
+    if (raw) {
+      try {
+        const body = JSON.parse(raw);
+        detail = body.detail || JSON.stringify(body);
+      } catch {
+        // not JSON — keep ``raw`` as-is
+      }
     }
     throw new APIError(res.status, detail || `HTTP ${res.status}`);
   }
