@@ -8,6 +8,13 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/pages.yml"
+  pull_request:
+    branches:
+      - trunk
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
     inputs:
       api_base:
@@ -82,6 +89,10 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    # Skip the actual deploy on pull_request runs — they only validate the
+    # build / lint / typecheck. Real deploys happen on push to trunk/main and
+    # via workflow_dispatch.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
