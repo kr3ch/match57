@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { APIError, api } from "@/lib/api";
@@ -13,8 +13,9 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
-export default function ChatPage({ params }: { params: { id: string } }) {
-  const conversationId = Number(params.id);
+export default function ChatPage() {
+  const sp = useSearchParams();
+  const conversationId = Number(sp.get("id") ?? "");
   const router = useRouter();
   const { me } = useAuth();
   const { push } = useNotifications();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
@@ -10,9 +10,9 @@ import { useNotifications } from "@/components/providers/NotificationProvider";
 import type { Me } from "@/lib/types";
 
 export default function AdminUserDetailPage() {
-  const params = useParams<{ id: string }>();
+  const sp = useSearchParams();
   const router = useRouter();
-  const id = Number(params.id);
+  const id = Number(sp.get("id") ?? "");
   const { push } = useNotifications();
   const [profile, setProfile] = useState<Me | null>(null);
   const [busy, setBusy] = useState(false);

@@ -43,6 +43,16 @@ const Ctx = createContext<RealtimeCtx | null>(null);
 
 function wsUrl() {
   if (typeof window === "undefined") return "";
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE;
+  if (apiBase) {
+    try {
+      const url = new URL(apiBase);
+      const proto = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${url.host}/api/ws`;
+    } catch {
+      // fall through to same-origin
+    }
+  }
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${window.location.host}/api/ws`;
 }

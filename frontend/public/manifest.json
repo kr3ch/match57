@@ -1,0 +1,10 @@
+{
+  "name": "MATCH 57",
+  "short_name": "MATCH 57",
+  "description": "Знакомства школы №57",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#050402",
+  "theme_color": "#050402",
+  "icons": []
+}

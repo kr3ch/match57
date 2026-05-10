@@ -6,11 +6,15 @@ import { RealtimeProvider } from "@/components/providers/RealtimeProvider";
 import { Toaster } from "@/components/Toaster";
 import "./globals.css";
 
+// next.config.js sets basePath via STATIC_EXPORT. The metadata API does NOT
+// prefix basePath onto absolute paths, so we do it ourselves.
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export const metadata: Metadata = {
   title: "MATCH 57 — знакомства школы №57",
   description:
     "Найди своих в 57-й школе. Анкеты, лайки, мэтчи — теперь и на сайте.",
-  manifest: "/manifest.json",
+  manifest: `${BASE_PATH}/manifest.json`,
 };
 
 export const viewport: Viewport = {

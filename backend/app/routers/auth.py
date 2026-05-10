@@ -24,6 +24,8 @@ from app.auth import (
 )
 from app.config import (
     ADMIN_EMAILS,
+    COOKIE_SAMESITE,
+    COOKIE_SECURE,
     DEFAULT_SCHOOL,
     EMAIL_VERIFY_REQUIRED,
     GENDER_CHOICES,
@@ -56,13 +58,16 @@ def _check_rate(ip: str) -> None:
 
 
 def _set_cookie(resp: Response, token: str) -> None:
+    # SameSite=None requires Secure=True for modern browsers. We rely on the
+    # operator (env vars COOKIE_SAMESITE / COOKIE_SECURE) to set those
+    # consistently — see ``DEPLOYMENT.md`` for the prod recipe.
     resp.set_cookie(
         SESSION_COOKIE,
         token,
         max_age=SESSION_TTL_DAYS * 86400,
         httponly=True,
-        samesite="lax",
-        secure=False,  # set True behind HTTPS in prod
+        samesite=COOKIE_SAMESITE,  # "lax" / "strict" / "none"
+        secure=COOKIE_SECURE,
         path="/",
     )
 
@@ -187,7 +192,14 @@ async def login(payload: LoginIn, request: Request, response: Response, db: Sess
 
 @router.post("/logout")
 async def logout(response: Response) -> dict:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    # delete_cookie must echo the original SameSite/Secure attributes,
+    # otherwise browsers refuse to clear cross-origin cookies.
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path="/",
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+    )
     return {"ok": True}
 
 

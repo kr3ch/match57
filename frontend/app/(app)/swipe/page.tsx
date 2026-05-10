@@ -46,7 +46,7 @@ export default function SwipePage() {
             push({
               title: `Мэтч с ${top.name}!`,
               body: "Открыть чат?",
-              href: `/chats/${r.conversation_id}`,
+              href: `/chat?id=${r.conversation_id}`,
             });
           }
         } else {

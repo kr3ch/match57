@@ -78,7 +78,7 @@ export default function MatchesPage() {
               </div>
               {m.conversation_id ? (
                 <Link
-                  href={`/chats/${m.conversation_id}`}
+                  href={`/chat?id=${m.conversation_id}`}
                   className="btn-primary px-4"
                 >
                   Чат →

@@ -94,9 +94,9 @@ export default function LikesPage() {
                       push({
                         title: `Мэтч с ${p.name}!`,
                         body: "Открыть чат?",
-                        href: `/chats/${r.conversation_id}`,
+                        href: `/chat?id=${r.conversation_id}`,
                       });
-                      router.push(`/chats/${r.conversation_id}`);
+                      router.push(`/chat?id=${r.conversation_id}`);
                     } else {
                       push({ title: "Лайк отправлен" });
                     }

@@ -97,7 +97,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         push({
           title: "Новый мэтч!",
           body: `${evt.user.name}, ${evt.user.age}`,
-          href: `/chats/${evt.conversation_id}`,
+          href: `/chat?id=${evt.conversation_id}`,
         });
       } else if (evt.type === "like") {
         push({
@@ -112,7 +112,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             evt.message.kind === "text"
               ? evt.message.body || ""
               : `📎 ${evt.message.kind}`,
-          href: `/chats/${evt.message.conversation_id}`,
+          href: `/chat?id=${evt.message.conversation_id}`,
         });
       }
     });

@@ -33,7 +33,7 @@ export default function AdminReportsPage() {
                 <div className="text-xs text-ink-200/70">
                   на{" "}
                   <Link
-                    href={`/admin/users/${r.target_user_id}`}
+                    href={`/admin/user?id=${r.target_user_id}`}
                     className="text-ember-300 underline"
                   >
                     id:{r.target_user_id}

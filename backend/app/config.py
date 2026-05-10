@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal, cast
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -31,6 +32,18 @@ SESSION_SECRET = os.environ.get("SESSION_SECRET", "dev-secret-change-me")
 SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "match57_session")
 BCRYPT_ROUNDS = int(os.environ.get("BCRYPT_ROUNDS", "12"))
+
+# Cookie attributes for cross-origin (e.g. GitHub Pages frontend ↔ Fly.io API).
+# Default to "lax" + insecure for localhost dev. In production set
+# COOKIE_SAMESITE=none and COOKIE_SECURE=1 (HTTPS required by browsers for
+# SameSite=None cookies).
+_SAMESITE_RAW = os.environ.get("COOKIE_SAMESITE", "lax").lower()
+if _SAMESITE_RAW not in ("lax", "strict", "none"):
+    _SAMESITE_RAW = "lax"
+COOKIE_SAMESITE: Literal["lax", "strict", "none"] = cast(
+    Literal["lax", "strict", "none"], _SAMESITE_RAW
+)
+COOKIE_SECURE: bool = os.environ.get("COOKIE_SECURE", "0") == "1"
 
 # ─── Email verification ─────────────────────────────────────────────────────
 # In dev mode (no SMTP env vars) we just log the verification link to stdout,
@@ -63,6 +76,11 @@ RATE_LIMIT_SECONDS = float(os.environ.get("RATE_LIMIT_SECONDS", "0.7"))
 
 # ─── App-wide ───────────────────────────────────────────────────────────────
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+# Multiple comma-separated origins are allowed (GH Pages + custom domain etc.).
+# Falls back to FRONTEND_ORIGIN if FRONTEND_ORIGINS is not set.
+FRONTEND_ORIGINS: list[str] = [
+    o.strip() for o in os.environ.get("FRONTEND_ORIGINS", FRONTEND_ORIGIN).split(",") if o.strip()
+]
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", FRONTEND_ORIGIN)
 ADMIN_EMAILS = {
     e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()

@@ -1,7 +1,12 @@
 /**
- * Typed fetch client. Backend is mounted on the same origin via the Next.js
- * rewrite (``next.config.js``); on dev that proxy hits ``localhost:8000``.
- * All requests carry the auth cookie (``credentials: include``).
+ * Typed fetch client. In dev, backend is mounted on the same origin via the
+ * Next.js rewrite (``next.config.js``); on prod static-export builds the
+ * backend lives on a different origin and is configured via
+ * ``NEXT_PUBLIC_API_BASE`` (e.g. ``https://match57-api.fly.dev``).
+ *
+ * All requests carry the auth cookie (``credentials: include``). The backend
+ * MUST be configured with ``COOKIE_SAMESITE=none`` and ``COOKIE_SECURE=1`` for
+ * cross-origin cookies to work in production (see ``DEPLOYMENT.md``).
  */
 import type {
   AdminStatsV2,
@@ -18,7 +23,8 @@ import type {
   SkippedItem,
 } from "./types";
 
-const BASE = "";
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/$/, "");
+const BASE = API_BASE;
 
 export class APIError extends Error {
   status: number;

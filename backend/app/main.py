@@ -14,7 +14,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from app.config import FRONTEND_ORIGIN  # noqa: E402
+from app.config import FRONTEND_ORIGINS  # noqa: E402
 from app.db import engine  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.middleware import RateLimitMiddleware  # noqa: E402
@@ -49,7 +49,7 @@ app = FastAPI(title="MATCH 57", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

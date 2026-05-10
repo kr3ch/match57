@@ -55,7 +55,7 @@ export default function AdminLeaderboardsPage() {
             <span className="display text-3xl text-ember-300/70">{i + 1}</span>
             <div className="flex-1">
               <Link
-                href={`/admin/users/${row.user_id}`}
+                href={`/admin/user?id=${row.user_id}`}
                 className="display text-xl underline-offset-2 hover:underline"
               >
                 id:{row.user_id}

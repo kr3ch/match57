@@ -54,9 +54,9 @@ match57/
 │   │       ├── likes/              входящие лайки
 │   │       ├── matches/            мэтчи (online-индикатор, кнопка «чат»)
 │   │       ├── skipped/            отвергнутые + undo
-│   │       ├── chats/              список чатов и окно диалога
-│   │       │   └── [id]/page.tsx   чат: история, typing, read-receipts,
-│   │       │                       реакции, голос/видео-запись
+│   │       ├── chats/              список чатов
+│   │       ├── chat/page.tsx       окно диалога (?id=N): история, typing,
+│   │       │                       read-receipts, реакции, голос/видео-запись
 │   │       ├── profile/            свой профиль + edit (3 фото слота)
 │   │       ├── settings/           скрыть анкету, web-push, выход
 │   │       └── admin/              stats / users / reports / broadcast / топы
@@ -123,12 +123,21 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 cd frontend
 npm install
-echo "NEXT_PUBLIC_API_BASE=http://localhost:8000" > .env.local
+cp .env.local.example .env.local   # оставь NEXT_PUBLIC_API_BASE пустым
 npm run dev   # → http://localhost:3000
 ```
 
 В dev режиме фронт проксирует `/api/*` и `/api/ws` на `localhost:8000`
-(см. `next.config.mjs`).
+(см. `next.config.js`).
+
+### Production deploy → GitHub Pages + Fly.io
+
+Подробный гайд: [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+Коротко: бэк деплоится на Fly.io (`flyctl deploy` из `backend/`), фронт
+собирается в статический экспорт (`STATIC_EXPORT=1 npm run build`) и
+автодеплоится на GitHub Pages через `.github/workflows/pages.yml` при пуше
+в `trunk`. Прод-URL: <https://kr3ch.github.io/match57/>.
 
 ### 3. (опц.) Миграция со старого users_db.json
 

@@ -39,7 +39,7 @@ export default function AdminUsersPage() {
         {items.map((u) => (
           <li key={u.user_id}>
             <Link
-              href={`/admin/users/${u.user_id}`}
+              href={`/admin/user?id=${u.user_id}`}
               className="glass flex items-center justify-between p-4 transition hover:bg-white/[0.07]"
             >
               <div>

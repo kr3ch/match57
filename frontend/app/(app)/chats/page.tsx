@@ -65,7 +65,7 @@ export default function ChatsPage() {
               transition={{ delay: i * 0.03 }}
             >
               <Link
-                href={`/chats/${c.id}`}
+                href={`/chat?id=${c.id}`}
                 className="glass flex items-center gap-3 p-3 hover:bg-white/5"
               >
                 <div className="relative h-14 w-14 flex-none overflow-hidden rounded-2xl bg-ink-700/60">

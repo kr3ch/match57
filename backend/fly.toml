@@ -1,0 +1,39 @@
+# Sample Fly.io config for the MATCH 57 v2 backend.
+# Run `flyctl launch --no-deploy --copy-config` to bootstrap your own app, or
+# tweak `app = "match57-api"` to a unique name. See DEPLOYMENT.md.
+app = "match57-api"
+primary_region = "fra"
+
+[build]
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+  UPLOAD_DIR = "/data/uploads"
+  DATABASE_URL = "sqlite+aiosqlite:////data/match57.db"
+  SESSION_COOKIE_NAME = "match57_session"
+  SESSION_TTL_DAYS = "30"
+  COOKIE_SAMESITE = "none"
+  COOKIE_SECURE = "1"
+  # Comma-separated list of allowed frontend origins.
+  FRONTEND_ORIGINS = "https://kr3ch.github.io"
+  # Public URL of the frontend (used in email-verify links).
+  PUBLIC_BASE_URL = "https://kr3ch.github.io/match57"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[mounts]
+  source = "match57_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
