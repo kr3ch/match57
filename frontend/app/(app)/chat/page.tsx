@@ -122,13 +122,14 @@ export default function ChatPage() {
   }, [subscribe, conversationId, me]);
 
   const otherOnline = useMemo(() => {
-    if (!conv) return false;
-    return online.has(conv.other.user_id) || conv.other.online;
+    if (!conv?.other_user) return false;
+    return online.has(conv.other_user.user_id) || conv.other_user.online;
   }, [conv, online]);
 
-  if (!conv) {
+  if (!conv?.other_user) {
     return <p className="text-ink-200/60">Грузим…</p>;
   }
+  const other = conv.other_user;
 
   return (
     <main className="flex h-[calc(100dvh-1.5rem)] flex-col">
@@ -137,10 +138,10 @@ export default function ChatPage() {
           ←
         </Link>
         <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
-          {conv.other.avatar ? (
+          {other.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={mediaUrl(conv.other.avatar.user_id, conv.other.avatar.filename)}
+              src={mediaUrl(other.avatar.user_id, other.avatar.filename)}
               alt=""
               className="h-full w-full object-cover"
             />
@@ -153,11 +154,11 @@ export default function ChatPage() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="display text-lg leading-tight">
-            {conv.other.name}
-            {conv.other.age ? `, ${conv.other.age}` : ""}
+            {other.name}
+            {other.age ? `, ${other.age}` : ""}
           </div>
           <div className="text-[11px] text-ink-200/60">
-            {otherTyping ? "печатает…" : otherOnline ? "онлайн" : conv.other.last_seen_at ? `был(а) ${new Date(conv.other.last_seen_at).toLocaleString("ru-RU")}` : "не в сети"}
+            {otherTyping ? "печатает…" : otherOnline ? "онлайн" : other.last_seen_at ? `был(а) ${new Date(other.last_seen_at).toLocaleString("ru-RU")}` : "не в сети"}
           </div>
         </div>
       </header>

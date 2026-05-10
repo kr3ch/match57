@@ -65,7 +65,7 @@ export type SkippedItem = {
 
 export type ConversationListItem = {
   id: number;
-  other: {
+  other_user: {
     user_id: number;
     name: string;
     username: string | null;
@@ -75,7 +75,7 @@ export type ConversationListItem = {
       | null;
     online: boolean;
     last_seen_at: string | null;
-  };
+  } | null;
   last_message: {
     id: number;
     body: string | null;

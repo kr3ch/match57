@@ -16,6 +16,11 @@ _last_seen: dict[str, float] = {}
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
+        # CORS preflights must always pass through so browsers can read the
+        # ``Access-Control-Allow-Origin`` header. Rate-limiting them would
+        # break every cross-origin request from a static-export frontend.
+        if request.method == "OPTIONS":
+            return await call_next(request)
         path = request.url.path
         # Skip health/static + WS handshake.
         if path.startswith("/api/ws") or path == "/health" or not path.startswith("/api"):

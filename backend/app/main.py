@@ -47,6 +47,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MATCH 57", version="2.0.0", lifespan=lifespan)
 
+# Middleware order matters: ``add_middleware`` builds a stack where the
+# *last* call is *outermost* (runs first on requests, last on responses).
+# CORS MUST be outermost so its headers are attached even when an inner
+# middleware short-circuits with 4xx/5xx (otherwise browsers see a CORS
+# error instead of the real status).
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
@@ -54,7 +60,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(RateLimitMiddleware)
 
 app.include_router(auth_router)
 app.include_router(profile_router)

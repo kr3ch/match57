@@ -48,7 +48,9 @@ export default function ChatsPage() {
 
       <ul className="flex flex-col gap-2">
         {items.map((c, i) => {
-          const isOnline = online.has(c.other.user_id) || c.other.online;
+          const other = c.other_user;
+          if (!other) return null;
+          const isOnline = online.has(other.user_id) || other.online;
           const last = c.last_message;
           const preview =
             !last ? "—" :
@@ -69,10 +71,10 @@ export default function ChatsPage() {
                 className="glass flex items-center gap-3 p-3 hover:bg-white/5"
               >
                 <div className="relative h-14 w-14 flex-none overflow-hidden rounded-2xl bg-ink-700/60">
-                  {c.other.avatar ? (
-                    c.other.avatar.kind === "video" ? (
+                  {other.avatar ? (
+                    other.avatar.kind === "video" ? (
                       <video
-                        src={mediaUrl(c.other.avatar.user_id, c.other.avatar.filename)}
+                        src={mediaUrl(other.avatar.user_id, other.avatar.filename)}
                         className="h-full w-full object-cover"
                         autoPlay
                         loop
@@ -82,7 +84,7 @@ export default function ChatsPage() {
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={mediaUrl(c.other.avatar.user_id, c.other.avatar.filename)}
+                        src={mediaUrl(other.avatar.user_id, other.avatar.filename)}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -99,8 +101,8 @@ export default function ChatsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="display text-base">
-                      {c.other.name}
-                      {c.other.age ? `, ${c.other.age}` : ""}
+                      {other.name}
+                      {other.age ? `, ${other.age}` : ""}
                     </span>
                     {c.last_message_at && (
                       <span className="text-[11px] text-ink-200/60">
