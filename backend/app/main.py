@@ -47,6 +47,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MATCH 57", version="2.0.0", lifespan=lifespan)
 
+# Middleware order matters: Starlette wraps middlewares in REVERSE registration
+# order, so the LAST `add_middleware` call becomes the OUTERMOST. We want
+# CORS to be outermost — otherwise short-circuit responses from
+# RateLimitMiddleware (e.g. 429) bypass CORSMiddleware and the browser shows
+# a misleading "No Access-Control-Allow-Origin" error instead of the real 429.
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -55,7 +61,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(RateLimitMiddleware)
 
 app.include_router(auth_router)
 app.include_router(profile_router)
