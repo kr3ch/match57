@@ -64,7 +64,15 @@ async def mark_read(conv_id: int, user: CurrentUserDep, db: SessionDep) -> dict:
     if conv is None:
         raise HTTPException(status_code=404, detail="conversation_not_found")
     new_ids = await mark_conversation_read(db, conv_id, user.id)
+    if not new_ids:
+        # Idempotent fast-path: nothing newly read, skip the WS fan-out so the
+        # frontend can poll-on-focus without amplifying broadcast traffic.
+        return {"ok": True, "marked": 0}
     other_id = conversation_other_user_id(conv, user.id)
     for mid in new_ids:
-        await manager.send_to_user(other_id, read_event(mid, user.id, conv_id))
+        evt = read_event(mid, user.id, conv_id)
+        # Notify the author so their unread indicator clears, and also the
+        # current user (their other tabs / refreshed sidebar).
+        await manager.send_to_user(other_id, evt)
+        await manager.send_to_user(user.id, evt)
     return {"ok": True, "marked": len(new_ids)}

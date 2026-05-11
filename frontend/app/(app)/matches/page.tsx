@@ -6,11 +6,13 @@ import { motion } from "framer-motion";
 
 import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
+import { formatLastSeen, useTicker } from "@/lib/presence";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
 export default function MatchesPage() {
   const { data, isLoading } = useSWR("matches", () => api.matches());
   const { online } = useRealtime();
+  useTicker(30_000);
   const items = data?.items ?? [];
 
   return (
@@ -75,6 +77,13 @@ export default function MatchesPage() {
                 {m.user.username && (
                   <div className="text-xs text-ink-200/60">@{m.user.username}</div>
                 )}
+                <div className="text-[11px] text-ink-200/60">
+                  {isOnline
+                    ? "в сети"
+                    : m.user.last_seen_at
+                      ? `был(а) ${formatLastSeen(m.user.last_seen_at)}`
+                      : "не в сети"}
+                </div>
               </div>
               {m.conversation_id ? (
                 <Link

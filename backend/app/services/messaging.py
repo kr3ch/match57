@@ -82,7 +82,11 @@ async def serialize_message(
         "reply_to_id": message.reply_to_id,
         "created_at": message.created_at.isoformat() if message.created_at else None,
         "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+        # Both shapes for now: the legacy "deleted" boolean is still consumed
+        # by some clients, while the new ChatMessage type uses the actual
+        # timestamp so the bubble can render "удалено N мин назад" later.
         "deleted": message.deleted_at is not None,
+        "deleted_at": message.deleted_at.isoformat() if message.deleted_at else None,
         "reactions": reactions,
         "read_by": read_by,
         "is_mine": message.from_user_id == current_user_id,
