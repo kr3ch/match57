@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { body, display } from "./fonts";
+import { display } from "./fonts";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
 import { RealtimeProvider } from "@/components/providers/RealtimeProvider";
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${display.variable} ${body.variable} dark`}
+      className={`${display.variable} dark`}
       suppressHydrationWarning
     >
       <body>

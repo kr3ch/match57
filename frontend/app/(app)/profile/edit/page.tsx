@@ -8,7 +8,13 @@ import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
-import type { Me } from "@/lib/types";
+import type { LookingFor, Me } from "@/lib/types";
+
+const LOOKING_FOR_OPTIONS: { value: LookingFor; label: string }[] = [
+  { value: "Парни", label: "Парни" },
+  { value: "Девушки", label: "Девушки" },
+  { value: "Все равно", label: "Все равно" },
+];
 
 export default function EditProfilePage() {
   return (
@@ -28,6 +34,7 @@ function EditProfile() {
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
   const [age, setAge] = useState<number>(16);
+  const [lookingFor, setLookingFor] = useState<LookingFor>("Все равно");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -37,6 +44,7 @@ function EditProfile() {
       setDescription(p.profile.description ?? "");
       setPhone(p.profile.phone ?? "");
       setAge(p.profile.age);
+      setLookingFor(p.profile.looking_for);
     });
   }, []);
 
@@ -50,6 +58,7 @@ function EditProfile() {
         description: description.trim(),
         phone: phone.trim(),
         age,
+        looking_for: lookingFor,
       });
       setProfile(r.profile);
       push({ title: "Сохранено" });
@@ -196,6 +205,32 @@ function EditProfile() {
           value={phone}
           onChange={(e) => setPhone(e.target.value.slice(0, 30))}
         />
+        <label className="text-xs text-ink-200/70">кого ищу</label>
+        <div
+          role="radiogroup"
+          aria-label="Кого ищу"
+          className="grid grid-cols-3 gap-2"
+        >
+          {LOOKING_FOR_OPTIONS.map((opt) => {
+            const active = lookingFor === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setLookingFor(opt.value)}
+                className={`rounded-2xl border px-3 py-2 text-sm transition ${
+                  active
+                    ? "border-ember-400/70 bg-ember-500/20 text-ink-50"
+                    : "border-white/10 bg-white/[0.03] text-ink-200/80 hover:border-white/20 hover:bg-white/10"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-ink-200/60">
             {description.length} / 500
