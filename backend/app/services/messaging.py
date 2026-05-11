@@ -135,7 +135,7 @@ async def serialize_conversation(
 
     return {
         "id": conv.id,
-        "other_user": {
+        "other": {
             "user_id": other.id if other else other_id,
             "name": other.name if other else "(deleted)",
             "username": other.username if other else None,
