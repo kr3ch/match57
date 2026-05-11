@@ -21,7 +21,7 @@ function LoginContent() {
   const next = params?.get("next") || "/swipe";
   const { setMe } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,12 +31,12 @@ function LoginContent() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.login(email.trim(), password);
+      const res = await api.login(username.trim(), password);
       setMe(res.user);
       router.replace(next);
     } catch (e) {
       if (e instanceof APIError) {
-        if (e.status === 401) setError("Неверный email или пароль");
+        if (e.status === 401) setError("Неверный логин или пароль");
         else if (e.status === 429) setError("Слишком много попыток. Попробуй через 15 минут");
         else if (e.status === 403) setError("Аккаунт заблокирован");
         else setError(e.detail);
@@ -61,17 +61,17 @@ function LoginContent() {
         <div className="glass mt-10 p-7">
           <h1 className="display text-3xl">Войти</h1>
           <p className="mt-2 text-sm text-ink-100/70">
-            Используй email и пароль, которыми регистрировался.
+            Используй логин и пароль, которыми регистрировался.
           </p>
           <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-3">
             <input
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               required
-              placeholder="email"
+              placeholder="логин"
               className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
             <input
               type="password"

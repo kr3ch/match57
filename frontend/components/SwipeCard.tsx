@@ -92,7 +92,7 @@ export function SwipeCard({
           style={{ opacity: likeOpacity }}
           className="pointer-events-none absolute left-8 top-12 -rotate-12 rounded-2xl border-2 border-ember-300 bg-ember-500/30 px-4 py-1 text-2xl font-bold uppercase tracking-widest text-ember-100"
         >
-          крутой
+          {profile.gender === "Девушка" ? "крутая" : "крутой"}
         </motion.div>
         <motion.div
           style={{ opacity: nopeOpacity }}

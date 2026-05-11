@@ -68,11 +68,14 @@ async def register_user(
     age: int = 17,
     gender: str = "Парень",
     looking_for: str = "Все равно",
+    username: str | None = None,
 ) -> dict:
+    if username is None:
+        username = email.split("@")[0]
     resp = await client.post(
         "/api/auth/register",
         json={
-            "email": email,
+            "username": username,
             "password": password,
             "name": name,
             "age": age,
