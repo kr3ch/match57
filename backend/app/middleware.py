@@ -14,6 +14,26 @@ from app.config import RATE_LIMIT_SECONDS
 _last_seen: dict[str, float] = {}
 
 
+def client_ip(request: Request) -> str:
+    """Best-effort real client IP.
+
+    Behind Render / Vercel / any reverse proxy ``request.client.host`` is the
+    proxy edge IP, which means every user shares the same rate-limit bucket.
+    We trust the first hop of ``X-Forwarded-For`` instead.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    if request.client:
+        return request.client.host
+    return "anon"
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
@@ -23,7 +43,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Tests / CI: skip rate-limit entirely.
         if os.environ.get("DISABLE_RATE_LIMIT") == "1" or "PYTEST_CURRENT_TEST" in os.environ:
             return await call_next(request)
-        ip = request.client.host if request.client else "anon"
+        ip = client_ip(request)
         now = time.time()
         last = _last_seen.get(ip, 0.0)
         if now - last < RATE_LIMIT_SECONDS and not path.startswith("/api/auth"):
