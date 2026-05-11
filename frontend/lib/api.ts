@@ -83,8 +83,14 @@ async function _fetchWithRetry(url: string, init: RequestInit): Promise<Response
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // Force a network fetch on every API call. Browsers and intermediate
+  // proxies have been observed serving stale per-user responses (e.g.
+  // /api/auth/me) when the platform CDN injects a permissive
+  // `Cache-Control: public` and forgets to vary on Cookie. Belt + braces
+  // with the backend's NoSharedCacheMiddleware.
   const res = await _fetchWithRetry(`${BASE}${path}`, {
     credentials: "include",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(init.headers || {}),
@@ -102,6 +108,7 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
   const res = await _fetchWithRetry(`${BASE}${path}`, {
     method: "POST",
     credentials: "include",
+    cache: "no-store",
     body,
   });
   if (!res.ok) {

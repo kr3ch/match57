@@ -1,4 +1,4 @@
-"""Per-user rate limit + ban-block middleware."""
+"""Per-user rate limit + ban-block + no-shared-cache middleware."""
 
 from __future__ import annotations
 
@@ -101,3 +101,37 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
         _last_seen[bucket] = now
         return await call_next(request)
+
+
+class NoSharedCacheMiddleware(BaseHTTPMiddleware):
+    """Force-set ``Cache-Control: private, no-store`` on every API response.
+
+    Why this exists
+    ---------------
+    Vercel's edge auto-injects ``Cache-Control: public, max-age=0,
+    must-revalidate`` on any rewritten response that doesn't already set
+    its own ``Cache-Control``. With ``public`` and a ``Vary`` header that
+    doesn't list ``Cookie``, intermediate caches are allowed to store the
+    response keyed only by URL — which has caused real user-visible
+    cross-account leaks where one user refreshed and saw another user's
+    profile from ``/api/auth/me``. By stamping ``private, no-store``
+    ourselves, no shared cache will ever store these responses, and we
+    also opt out of Vercel's default header injection.
+
+    We exempt ``/api/media/*`` so chat media (per-conversation
+    images/audio/video served via FileResponse) keeps the
+    FileResponse-default caching behavior; auth on those is enforced by
+    the route handler itself.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/api/") and not path.startswith("/api/media/"):
+            response.headers["Cache-Control"] = "private, no-store"
+            existing_vary = response.headers.get("Vary", "")
+            vary_parts = [p.strip() for p in existing_vary.split(",") if p.strip()]
+            if not any(p.lower() == "cookie" for p in vary_parts):
+                vary_parts.append("Cookie")
+            response.headers["Vary"] = ", ".join(vary_parts)
+        return response
