@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { APIError, api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
 import { useNotifications } from "@/components/providers/NotificationProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 import type { Me } from "@/lib/types";
 
 export default function EditProfilePage() {
@@ -21,6 +22,7 @@ function EditProfile() {
   const params = useSearchParams();
   const welcome = params?.get("welcome") === "1";
   const { push } = useNotifications();
+  const { refresh: refreshAuth } = useAuth();
   const [profile, setProfile] = useState<Me | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -63,6 +65,7 @@ function EditProfile() {
     try {
       const r = await api.addPhoto(file);
       setProfile(r.profile);
+      await refreshAuth();
     } catch (e) {
       if (e instanceof APIError) push({ title: "Не загрузилось", body: e.detail });
     } finally {
@@ -75,6 +78,7 @@ function EditProfile() {
     try {
       const r = await api.deletePhoto(photoId);
       setProfile(r.profile);
+      await refreshAuth();
     } catch (e) {
       if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
     } finally {
