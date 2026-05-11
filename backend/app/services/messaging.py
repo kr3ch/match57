@@ -54,7 +54,7 @@ async def serialize_message(
     reactions: list[dict[str, Any]] = []
     res = await db.execute(select(MessageReaction).where(MessageReaction.message_id == message.id))
     for r in res.scalars():
-        reactions.append({"user_id": r.user_id, "emoji": r.emoji, "at": r.created_at.isoformat()})
+        reactions.append({"user_id": r.user_id, "emoji": r.emoji, "at": r.created_at.isoformat() + "Z"})
 
     reads_res = await db.execute(
         select(MessageRead.user_id).where(MessageRead.message_id == message.id)
@@ -80,13 +80,13 @@ async def serialize_message(
             else None
         ),
         "reply_to_id": message.reply_to_id,
-        "created_at": message.created_at.isoformat() if message.created_at else None,
-        "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+        "created_at": (message.created_at.isoformat() + "Z") if message.created_at else None,
+        "edited_at": (message.edited_at.isoformat() + "Z") if message.edited_at else None,
         # Both shapes for now: the legacy "deleted" boolean is still consumed
         # by some clients, while the new ChatMessage type uses the actual
         # timestamp so the bubble can render "удалено N мин назад" later.
         "deleted": message.deleted_at is not None,
-        "deleted_at": message.deleted_at.isoformat() if message.deleted_at else None,
+        "deleted_at": (message.deleted_at.isoformat() + "Z") if message.deleted_at else None,
         "reactions": reactions,
         "read_by": read_by,
         "is_mine": message.from_user_id == current_user_id,
@@ -146,16 +146,16 @@ async def serialize_conversation(
             "age": other.age if other else None,
             "avatar": avatar,
             "online": online_check(other_id) if other else False,
-            "last_seen_at": other.last_seen_at.isoformat()
+            "last_seen_at": (other.last_seen_at.isoformat() + "Z")
             if (other and other.last_seen_at)
             else None,
         }
         if other
         else None,
         "last_message": last_serial,
-        "last_message_at": conv.last_message_at.isoformat() if conv.last_message_at else None,
+        "last_message_at": (conv.last_message_at.isoformat() + "Z") if conv.last_message_at else None,
         "unread_count": unread_count or 0,
-        "created_at": conv.created_at.isoformat() if conv.created_at else None,
+        "created_at": (conv.created_at.isoformat() + "Z") if conv.created_at else None,
     }
 
 
