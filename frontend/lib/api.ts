@@ -291,6 +291,12 @@ export const api = {
       method: "DELETE",
     });
   },
+  forwardMessage(messageId: number, conversationId: number) {
+    return request<{ message: ChatMessage }>(
+      `/api/messages/${messageId}/forward`,
+      { method: "POST", body: JSON.stringify({ conversation_id: conversationId }) },
+    );
+  },
 
   // ── media ────────────────────────────────────────────────────────
   upload(file: Blob, filename = "upload.bin") {

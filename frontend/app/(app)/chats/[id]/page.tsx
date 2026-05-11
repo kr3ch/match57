@@ -9,6 +9,7 @@ import type { ChatMessage, ConversationListItem } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
 import { presenceLabel, useTicker } from "@/lib/presence";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { ForwardModal } from "@/components/chat/ForwardModal";
 import { Composer } from "@/components/chat/Composer";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
@@ -30,6 +31,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState<ChatMessage | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [activeActionMsgId, setActiveActionMsgId] = useState<number | null>(null);
+  const [forwardMsgId, setForwardMsgId] = useState<number | null>(null);
   const typingClearRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
@@ -269,18 +272,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             key={m.id}
             msg={m}
             isMine={m.from_user_id === me?.user_id}
-            onReply={() => setReply(m)}
+            onReply={() => { setReply(m); setActiveActionMsgId(null); }}
             onReact={(emoji) => {
               api.reactMessage(m.id, emoji).catch((e) => {
                 if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
               });
             }}
             onDelete={() => {
+              setActiveActionMsgId(null);
               api.deleteMessage(m.id).catch((e) => {
                 if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
               });
             }}
+            onForward={() => { setForwardMsgId(m.id); setActiveActionMsgId(null); }}
             showRead
+            actionsOpen={activeActionMsgId === m.id}
+            onToggleActions={() => setActiveActionMsgId((prev) => (prev === m.id ? null : m.id))}
           />
         ))}
         {messages.length === 0 && (
@@ -300,6 +307,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         }}
         onClearReply={() => setReply(null)}
       />
+
+      {forwardMsgId !== null && (
+        <ForwardModal
+          messageId={forwardMsgId}
+          currentConversationId={conversationId}
+          onClose={() => setForwardMsgId(null)}
+        />
+      )}
     </main>
   );
 }

@@ -13,14 +13,20 @@ export function MessageBubble({
   onReply,
   onReact,
   onDelete,
+  onForward,
   showRead,
+  actionsOpen,
+  onToggleActions,
 }: {
   msg: ChatMessage;
   isMine: boolean;
   onReply: () => void;
   onReact: (emoji: string) => void;
   onDelete: () => void;
+  onForward: () => void;
   showRead: boolean;
+  actionsOpen: boolean;
+  onToggleActions: () => void;
 }) {
   const [picker, setPicker] = useState(false);
   if (msg.deleted_at) {
@@ -42,11 +48,12 @@ export function MessageBubble({
       }`}
     >
       <div
-        className={`relative rounded-2xl px-3 py-2 text-[15px] shadow-sm ${
+        className={`relative rounded-2xl px-3 py-2 text-[15px] shadow-sm cursor-pointer select-none ${
           isMine
             ? "bg-ember-500/85 text-ink-950"
             : "bg-white/10 text-ink-50 backdrop-blur"
         }`}
+        onClick={onToggleActions}
       >
         {msg.kind === "text" ? (
           <p className="whitespace-pre-wrap break-words">{msg.body}</p>
@@ -104,42 +111,53 @@ export function MessageBubble({
         {isMine && showRead && msg.read_by.length > 0 && <span>· прочитано</span>}
       </div>
 
-      <div className="absolute -top-2 right-0 flex gap-1 opacity-0 transition group-hover:opacity-100">
-        <button
-          type="button"
-          aria-label="Реакция"
-          className="rounded-full bg-ink-900/80 px-2 py-1 text-xs"
-          onClick={() => setPicker((v) => !v)}
-        >
-          😊
-        </button>
-        <button
-          type="button"
-          aria-label="Ответить"
-          className="rounded-full bg-ink-900/80 px-2 py-1 text-xs"
-          onClick={onReply}
-        >
-          ↩
-        </button>
-        {isMine && (
+      {actionsOpen && (
+        <div className={`absolute -top-2 z-20 flex gap-1 ${isMine ? "right-0" : "left-0"}`}>
           <button
             type="button"
-            aria-label="Удалить"
-            className="rounded-full bg-ink-900/80 px-2 py-1 text-xs text-rose-300"
-            onClick={onDelete}
+            aria-label="Реакция"
+            className="rounded-full bg-ink-900/90 px-2 py-1 text-xs backdrop-blur"
+            onClick={(e) => { e.stopPropagation(); setPicker((v) => !v); }}
           >
-            ✕
+            😊
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            aria-label="Ответить"
+            className="rounded-full bg-ink-900/90 px-2 py-1 text-xs backdrop-blur"
+            onClick={(e) => { e.stopPropagation(); onReply(); }}
+          >
+            ↩
+          </button>
+          <button
+            type="button"
+            aria-label="Переслать"
+            className="rounded-full bg-ink-900/90 px-2 py-1 text-xs backdrop-blur"
+            onClick={(e) => { e.stopPropagation(); onForward(); }}
+          >
+            ↗
+          </button>
+          {isMine && (
+            <button
+              type="button"
+              aria-label="Удалить"
+              className="rounded-full bg-ink-900/90 px-2 py-1 text-xs text-rose-300 backdrop-blur"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       {picker && (
-        <div className="absolute -top-10 right-0 flex gap-1 rounded-full bg-ink-900/95 px-2 py-1 shadow-xl">
+        <div className={`absolute -top-10 z-30 flex gap-1 rounded-full bg-ink-900/95 px-2 py-1 shadow-xl ${isMine ? "right-0" : "left-0"}`}>
           {REACTIONS.map((e) => (
             <button
               key={e}
               type="button"
-              onClick={() => {
+              onClick={(ev) => {
+                ev.stopPropagation();
                 onReact(e);
                 setPicker(false);
               }}
