@@ -69,6 +69,34 @@ ADMIN_EMAILS = {
 }
 DEFAULT_SCHOOL = os.environ.get("DEFAULT_SCHOOL", "57")
 
+# ─── CORS / cookies ─────────────────────────────────────────────────────────
+# Comma-separated list of origins allowed by CORS. Defaults to FRONTEND_ORIGIN
+# so a single env var unlocks the standard prod setup. Set CORS_ORIGINS when
+# you need to allow multiple origins (e.g. prod + staging + localhost).
+_CORS_ENV = os.environ.get("CORS_ORIGINS", "").strip()
+CORS_ORIGINS: list[str] = (
+    [o.strip() for o in _CORS_ENV.split(",") if o.strip()]
+    if _CORS_ENV
+    else [FRONTEND_ORIGIN]
+)
+# Optional regex to match dynamic origins (e.g. Vercel preview URLs like
+# https://match57-git-feature-team.vercel.app). Leave empty to disable.
+CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
+
+# Cookie security. Cross-site auth cookies (frontend on Vercel + backend on
+# Render) require SameSite=None + Secure=True, otherwise the browser silently
+# drops the Set-Cookie header. We derive sane defaults from the frontend scheme
+# and let the deployment override via env vars when needed.
+_cross_site_default = FRONTEND_ORIGIN.startswith("https://") and "localhost" not in FRONTEND_ORIGIN
+COOKIE_SAMESITE = os.environ.get(
+    "COOKIE_SAMESITE",
+    "none" if _cross_site_default else "lax",
+).lower()
+COOKIE_SECURE = os.environ.get(
+    "COOKIE_SECURE",
+    "1" if _cross_site_default else "0",
+) == "1"
+
 # ─── App constants ──────────────────────────────────────────────────────────
 GENDER_CHOICES = ("Парень", "Девушка")
 LOOKING_FOR_CHOICES = ("Парни", "Девушки", "Все равно")
