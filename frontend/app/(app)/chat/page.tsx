@@ -212,7 +212,15 @@ export default function ChatPage() {
             {other.age ? `, ${other.age}` : ""}
           </div>
           <div className="text-[11px] text-ink-200/60">
-            {otherTyping ? "печатает…" : otherOnline ? "онлайн" : other.last_seen_at ? `был(а) ${new Date(other.last_seen_at).toLocaleString("ru-RU")}` : "не в сети"}
+            {otherTyping ? (
+              <span className="text-ember-300">печатает…</span>
+            ) : otherOnline ? (
+              "онлайн"
+            ) : other.last_seen_at ? (
+              `был(а) ${formatLastSeen(other.last_seen_at)}`
+            ) : (
+              "не в сети"
+            )}
           </div>
         </div>
       </header>
@@ -296,4 +304,14 @@ export default function ChatPage() {
       />
     </main>
   );
+}
+
+function formatLastSeen(iso: string): string {
+  const t = new Date(iso).getTime();
+  const diff = Math.max(0, Date.now() - t);
+  if (diff < 60_000) return "только что";
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} мин назад`;
+  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} ч назад`;
+  if (diff < 7 * 86400_000) return `${Math.floor(diff / 86400_000)} дн назад`;
+  return new Date(iso).toLocaleDateString("ru-RU");
 }
