@@ -34,10 +34,20 @@ EXT_BY_MIME = {
     "image/webp": ".webp",
     "video/webm": ".webm",
     "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/x-quicktime": ".mov",
+    "video/x-m4v": ".m4v",
+    "video/3gpp": ".3gp",
     "audio/webm": ".webm",
     "audio/ogg": ".ogg",
     "audio/mpeg": ".mp3",
     "audio/mp3": ".mp3",
+    "audio/mp4": ".m4a",
+    "audio/x-m4a": ".m4a",
+    "audio/aac": ".aac",
+    "audio/wav": ".wav",
+    "audio/wave": ".wav",
+    "audio/x-wav": ".wav",
     "application/pdf": ".pdf",
     "text/plain": ".txt",
     "application/zip": ".zip",
@@ -95,9 +105,51 @@ def _normalize_mime(raw: str | None) -> str:
     return raw.split(";", 1)[0].strip().lower()
 
 
+# Filename-extension fallback for when the browser tells us either nothing
+# (some iOS/Safari versions hand us files with no ``type``) or a too-generic
+# ``application/octet-stream`` — common for ``.mov`` uploads from iPhone.
+_MIME_BY_EXT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".webm": "video/webm",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".m4v": "video/x-m4v",
+    ".3gp": "video/3gpp",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".wav": "audio/wav",
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".zip": "application/zip",
+}
+
+
+def _mime_from_filename(name: str | None) -> str:
+    if not name:
+        return ""
+    lower = name.lower()
+    for ext, mime in _MIME_BY_EXT.items():
+        if lower.endswith(ext):
+            return mime
+    return ""
+
+
 async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
     """Validate the upload + write it to disk under the user's folder."""
     mime = _normalize_mime(file.content_type)
+    # iPhone Safari + many desktop browsers hand us .mov files as
+    # ``application/octet-stream`` or no MIME at all. Fall back to a
+    # filename-extension lookup so the user-facing UX is "pick file → it
+    # uploads" instead of a confusing 415.
+    if mime not in ALLOWED_MEDIA_MIMES:
+        fallback = _mime_from_filename(file.filename)
+        if fallback in ALLOWED_MEDIA_MIMES:
+            mime = fallback
     if mime not in ALLOWED_MEDIA_MIMES:
         raise HTTPException(status_code=415, detail=f"unsupported_mime:{file.content_type}")
     raw = await file.read()

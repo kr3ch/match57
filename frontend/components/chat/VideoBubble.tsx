@@ -25,7 +25,7 @@ export function VideoBubble({ src, isMine }: { src: string; isMine: boolean }) {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl shadow-card ${
+      className={`relative overflow-hidden rounded-2xl shadow-card ring-1 ring-white/10 ${
         isMine ? "bg-black/30" : "bg-black/40"
       }`}
       style={{ maxWidth: "min(320px, 70vw)" }}
@@ -56,9 +56,9 @@ export function VideoBubble({ src, isMine }: { src: string; isMine: boolean }) {
             e.stopPropagation();
             toggle();
           }}
-          className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/40 via-black/10 to-transparent transition hover:from-black/55"
+          className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/55 via-black/15 to-transparent transition hover:from-black/65"
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-ink-950 shadow-card transition active:scale-95">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-ember-500/95 text-ink-950 shadow-[0_8px_30px_rgba(244,134,90,0.55)] ring-1 ring-ember-50/30 transition active:scale-95">
             <svg
               viewBox="0 0 24 24"
               width="22"
@@ -70,7 +70,7 @@ export function VideoBubble({ src, isMine }: { src: string; isMine: boolean }) {
             </svg>
           </span>
           {!ready && (
-            <span className="absolute bottom-2 right-3 text-[10px] text-white/70">
+            <span className="absolute bottom-2 right-3 rounded-full bg-black/40 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur">
               загрузка…
             </span>
           )}

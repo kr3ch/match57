@@ -46,8 +46,30 @@ SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") == "1"
 # ─── Upload limits / MIME whitelist ─────────────────────────────────────────
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
-ALLOWED_VIDEO_MIMES = {"video/webm", "video/mp4"}
-ALLOWED_AUDIO_MIMES = {"audio/webm", "audio/ogg", "audio/mpeg", "audio/mp3"}
+ALLOWED_VIDEO_MIMES = {
+    "video/webm",
+    "video/mp4",
+    # iPhone (QuickTime) uses .mov and reports either of these MIME types.
+    # Treat them all as video so the chat upload doesn't 415 the user.
+    "video/quicktime",
+    "video/x-quicktime",
+    # Android devices and some encoders use these MP4 aliases.
+    "video/x-m4v",
+    "video/3gpp",
+}
+ALLOWED_AUDIO_MIMES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/mpeg",
+    "audio/mp3",
+    # iPhone voice memos / shared audio.
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+}
 ALLOWED_FILE_MIMES = {
     "application/pdf",
     "text/plain",
