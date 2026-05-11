@@ -46,6 +46,13 @@ _LOGIN_WINDOW_SEC = 15 * 60
 _LOGIN_MAX_ATTEMPTS = 10
 _login_buckets: dict[str, deque[float]] = {}
 
+_VERIFY_WINDOW_SEC = 10 * 60
+_VERIFY_MAX_ATTEMPTS = 8
+_verify_buckets: dict[str, deque[float]] = {}
+
+_RESEND_WINDOW_SEC = 60
+_resend_buckets: dict[int, float] = {}
+
 
 def _check_rate(ip: str) -> None:
     now = time.time()
@@ -54,6 +61,17 @@ def _check_rate(ip: str) -> None:
         bucket.popleft()
     if len(bucket) >= _LOGIN_MAX_ATTEMPTS:
         raise HTTPException(status_code=429, detail="too_many_login_attempts")
+    bucket.append(now)
+
+
+def _check_verify_rate(ip: str) -> None:
+    """Brute-force protection for 6-digit code verification."""
+    now = time.time()
+    bucket = _verify_buckets.setdefault(ip, deque(maxlen=_VERIFY_MAX_ATTEMPTS))
+    while bucket and bucket[0] < now - _VERIFY_WINDOW_SEC:
+        bucket.popleft()
+    if len(bucket) >= _VERIFY_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="too_many_attempts")
     bucket.append(now)
 
 
@@ -152,7 +170,7 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
     if EMAIL_VERIFY_REQUIRED:
         user.email_verify_token = make_email_token()
         user.email_verify_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
-            days=2
+            minutes=15
         )
     else:
         user.email_verified = True
@@ -212,27 +230,55 @@ async def me(user: CurrentUserDep, db: SessionDep) -> dict:
 async def resend_verify(user: CurrentUserDep, db: SessionDep) -> dict:
     if user.email_verified:
         return {"ok": True, "already": True}
+    now = time.time()
+    last = _resend_buckets.get(user.id, 0.0)
+    if now - last < _RESEND_WINDOW_SEC:
+        retry_after = int(_RESEND_WINDOW_SEC - (now - last))
+        raise HTTPException(
+            status_code=429,
+            detail=f"wait_{retry_after}s",
+        )
+    _resend_buckets[user.id] = now
     user.email_verify_token = make_email_token()
     user.email_verify_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
-        days=2
+        minutes=15
     )
     await db.flush()
     await send_verify_email(user.email, user.email_verify_token)
-    return {"ok": True}
+    return {"ok": True, "resend_in": _RESEND_WINDOW_SEC}
 
 
 @router.post("/verify-email")
 async def verify_email(
-    token: Annotated[str, Query()],
+    request: Request,
     db: SessionDep,
+    token: Annotated[str | None, Query()] = None,
 ) -> dict:
-    user = await db.scalar(select(User).where(User.email_verify_token == token))
+    """Verify by 6-digit code (preferred) or legacy magic-link token.
+
+    Body: ``{"code": "123456"}`` — preferred mobile/UX path.
+    Query: ``?token=123456`` — legacy magic-link path, both work.
+    """
+    ip = request.client.host if request.client else "unknown"
+    _check_verify_rate(ip)
+
+    code: str | None = token
+    if code is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        code = (body or {}).get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="code_required")
+    code = str(code).strip()
+    user = await db.scalar(select(User).where(User.email_verify_token == code))
     if user is None:
-        raise HTTPException(status_code=400, detail="bad_token")
+        raise HTTPException(status_code=400, detail="bad_code")
     if user.email_verify_expires_at and user.email_verify_expires_at < datetime.now(
         timezone.utc
     ).replace(tzinfo=None):
-        raise HTTPException(status_code=400, detail="token_expired")
+        raise HTTPException(status_code=400, detail="code_expired")
     user.email_verified = True
     user.email_verify_token = None
     user.email_verify_expires_at = None

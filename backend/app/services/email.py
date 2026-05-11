@@ -47,23 +47,27 @@ def _send_via_smtp(to: str, subject: str, body: str) -> None:
 async def send_verify_email(to: str, token: str) -> None:
     link = verify_link(token)
     body = (
-        "Привет!\n\n"
-        "Подтверди email для MATCH 57: " + link + "\n\n"
-        "Если ты не регистрировался — просто проигнорируй это письмо.\n"
+        f"Привет!\n\n"
+        f"Твой код подтверждения для MATCH 57:\n\n"
+        f"    {token}\n\n"
+        f"Введи его на экране подтверждения или просто открой ссылку:\n"
+        f"{link}\n\n"
+        f"Код действует 15 минут.\n"
+        f"Если ты не регистрировался — просто проигнорируй это письмо.\n"
     )
     if not SMTP_HOST:
-        log.warning("EMAIL VERIFY (dev) → %s : %s", to, link)
-        print(f"[email] verify link for {to}: {link}", flush=True)
+        log.warning("EMAIL VERIFY (dev) → %s : code=%s", to, token)
+        print(f"[email] verify code for {to}: {token}  (link: {link})", flush=True)
         return
     try:
         await asyncio.get_event_loop().run_in_executor(
-            None, _send_via_smtp, to, "MATCH 57 — подтверждение почты", body
+            None, _send_via_smtp, to, f"MATCH 57 — код подтверждения {token}", body
         )
         log.info("verify email sent to %s", to)
     except Exception as exc:
         log.exception("smtp_failed: %s", exc)
-        # Always log link as a fallback so users aren't locked out.
-        print(f"[email] FALLBACK verify link for {to}: {link}", flush=True)
+        # Always log code/link as a fallback so users aren't locked out.
+        print(f"[email] FALLBACK verify code for {to}: {token}", flush=True)
 
 
 __all__ = ["send_verify_email", "verify_link"]

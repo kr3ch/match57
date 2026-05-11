@@ -11,10 +11,25 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        // Editorial display (Google Fonts: Instrument Serif) + clean body
-        // (Manrope) -- intentionally avoiding overused Inter/Roboto/Arial.
-        display: ["var(--font-display)", "ui-serif", "Georgia"],
-        body: ["var(--font-body)", "ui-sans-serif", "system-ui"],
+        // SF-Pro-via-Inter design system: native SF Pro on Apple
+        // devices (-apple-system/BlinkMacSystemFont), Inter on everything
+        // else. Inter is the open-source SF clone, no licence issues.
+        display: [
+          "var(--font-display)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Display",
+          "ui-sans-serif",
+          "system-ui",
+        ],
+        body: [
+          "var(--font-body)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Text",
+          "ui-sans-serif",
+          "system-ui",
+        ],
         mono: ["var(--font-mono)", "ui-monospace"],
       },
       colors: {
@@ -86,10 +101,16 @@ const config: Config = {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        shake: {
+          "0%,100%": { transform: "translateX(0)" },
+          "20%,60%": { transform: "translateX(-6px)" },
+          "40%,80%": { transform: "translateX(6px)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.6s cubic-bezier(0.16,1,0.3,1) both",
         shimmer: "shimmer 4s linear infinite",
+        shake: "shake 0.4s ease-in-out",
       },
     },
   },

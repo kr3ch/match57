@@ -54,16 +54,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
-  // Auth gate: bounce protected pages to /login when unauthenticated.
+  // Auth gate: bounce protected pages to /login when unauthenticated,
+  // and bounce *unverified* users to /verify-email until they confirm.
   useEffect(() => {
     if (loading) return;
-    // Normalize trailing slash so PUBLIC_PATHS works under both
-    // ``trailingSlash: true`` (static export) and the dev defaults.
     const normalized = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
     const isPublic =
       PUBLIC_PATHS.has(normalized) || normalized.startsWith("/verify-email");
     if (!me && !isPublic) {
       router.replace(`/login?next=${encodeURIComponent(normalized)}`);
+      return;
+    }
+    if (
+      me &&
+      !me.email_verified &&
+      !normalized.startsWith("/verify-email") &&
+      normalized !== "/"
+    ) {
+      router.replace("/verify-email");
     }
   }, [loading, me, pathname, router]);
 

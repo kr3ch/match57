@@ -126,13 +126,16 @@ export const api = {
     return request<{ user: Me }>("/api/auth/me");
   },
   resendVerify() {
-    return request<{ ok: true }>("/api/auth/resend-verify", { method: "POST" });
-  },
-  verifyEmail(token: string) {
-    return request<{ ok: true }>(
-      `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+    return request<{ ok: true; resend_in?: number; already?: boolean }>(
+      "/api/auth/resend-verify",
       { method: "POST" },
     );
+  },
+  verifyEmail(codeOrToken: string) {
+    return request<{ ok: true }>("/api/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ code: codeOrToken }),
+    });
   },
 
   // ── profile ──────────────────────────────────────────────────────

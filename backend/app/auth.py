@@ -98,8 +98,13 @@ def verify_session(token: str | None) -> dict[str, Any] | None:
 
 
 def make_email_token() -> str:
-    """Random URL-safe verification token."""
-    return secrets.token_urlsafe(32)
+    """6-digit numeric verification code.
+
+    Used both as the inline code shown to the user *and* embedded as the
+    ``?token=`` parameter of the legacy magic link, so any path the user
+    chooses (click the link or type the code) hits the same endpoint.
+    """
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 __all__ = [

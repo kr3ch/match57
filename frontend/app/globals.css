@@ -4,9 +4,15 @@
 
 @layer base {
   :root {
-    --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
-    --font-body: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    /* Apple SF Pro on macOS/iOS, Inter (open-source SF clone) everywhere
+     * else. -apple-system / BlinkMacSystemFont reach the native SF binary
+     * on Apple platforms without redistributing it. */
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+      "Inter", "Manrope", ui-sans-serif, system-ui, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+      "Manrope", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono",
+      monospace;
 
     --bg: 6 4 2;
     --fg: 247 245 242;

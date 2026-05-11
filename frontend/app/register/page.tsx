@@ -96,7 +96,9 @@ function RegisterWizard() {
     try {
       const res = await api.register(payload);
       setMe(res.user);
-      router.replace("/profile/edit?welcome=1");
+      // Send everyone through the verification gate first; the gate
+      // redirects to /swipe (or /profile/edit if needed) after verify.
+      router.replace(res.user.email_verified ? "/swipe" : "/verify-email");
     } catch (e) {
       if (e instanceof APIError) {
         if (e.status === 409 && e.detail === "user_exists")
