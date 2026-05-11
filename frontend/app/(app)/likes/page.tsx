@@ -28,10 +28,13 @@ export default function LikesPage() {
 
       {isLoading ? <Skeleton /> : null}
       {!isLoading && items.length === 0 ? (
-        <div className="glass px-5 py-8 text-center">
-          <p className="display text-2xl">пока пусто</p>
-          <p className="mt-2 text-ink-100/80">
-            Свайпай — и тебя начнут видеть.
+        <div className="glass-soft flex flex-col items-center gap-3 px-5 py-12 text-center">
+          <span className="text-4xl">💌</span>
+          <p className="display text-xl font-semibold tracking-tight">
+            Пока пусто
+          </p>
+          <p className="max-w-xs text-sm text-ink-100/70">
+            Свайпай — и тебя начнут лайкать.
           </p>
         </div>
       ) : null}

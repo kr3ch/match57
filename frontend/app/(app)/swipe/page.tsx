@@ -69,23 +69,32 @@ export default function SwipePage() {
 
   if (exhausted && deck.length === 0) {
     return (
-      <main className="flex min-h-[80dvh] flex-col items-center justify-center gap-6 px-4 text-center">
-        <span className="display text-6xl">кончились…</span>
-        <p className="max-w-sm text-ink-100/80">
-          Анкеты закончились — но никто не уходит. Загляни через час, или
-          посмотри отвергнутых.
-        </p>
-        <div className="flex gap-3">
-          <button type="button" className="btn-ghost" onClick={() => void refill()}>
-            Проверить ещё раз
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => router.push("/skipped")}
-          >
-            Скип
-          </button>
+      <main className="flex min-h-[80dvh] flex-col items-center justify-center px-4 text-center">
+        <div className="glass-soft flex max-w-sm flex-col items-center gap-4 px-6 py-10">
+          <span className="text-5xl">🌅</span>
+          <h2 className="display text-3xl font-semibold tracking-tight">
+            Анкеты закончились
+          </h2>
+          <p className="text-sm text-ink-100/70">
+            Загляни через час — каждый день кто-то новый.
+            Можно ещё пересмотреть тех, кого ты пропустил.
+          </p>
+          <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="btn-primary flex-1"
+              onClick={() => void refill()}
+            >
+              Проверить ещё раз
+            </button>
+            <button
+              type="button"
+              className="btn-ghost flex-1"
+              onClick={() => router.push("/skipped")}
+            >
+              Пропущенные
+            </button>
+          </div>
         </div>
       </main>
     );

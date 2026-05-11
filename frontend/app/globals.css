@@ -65,22 +65,28 @@
     @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.18em] text-ink-100;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-ink-50 transition hover:bg-white/10 hover:border-white/20 active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-ink-50 transition-all duration-150 hover:bg-white/10 hover:border-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ember-500 px-5 py-3 text-sm font-semibold text-ink-950 shadow-card transition hover:brightness-110 active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ember-500 px-5 py-3 text-sm font-semibold text-ink-950 shadow-card transition-all duration-150 hover:brightness-110 hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100;
   }
   .btn-rose {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-card transition hover:brightness-110 active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-card transition-all duration-150 hover:brightness-110 hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .input {
-    @apply w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-base text-ink-50 placeholder:text-ink-300/60 focus:border-ember-400/60 focus:outline-none focus:ring-2 focus:ring-ember-400/30;
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-base text-ink-50 placeholder:text-ink-300/50 transition-colors focus:border-ember-400/60 focus:outline-none focus:ring-2 focus:ring-ember-400/30;
   }
   .label {
     @apply text-xs uppercase tracking-[0.18em] text-ink-200/80;
   }
   .display {
     @apply font-display tracking-tight;
+  }
+
+  /* Generic skeleton block — use on placeholder divs so they all share
+   * the same subtle shimmer. */
+  .skeleton {
+    @apply animate-pulse rounded bg-white/10;
   }
 }
 

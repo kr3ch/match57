@@ -22,13 +22,36 @@ export default function MatchesPage() {
         </p>
       </header>
 
-      {isLoading ? <p className="text-ink-200/60">Грузим…</p> : null}
+      {isLoading && items.length === 0 ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <li
+              key={i}
+              className="glass-soft flex animate-pulse items-center gap-3 p-3"
+            >
+              <div className="h-16 w-16 flex-none rounded-2xl bg-white/10" />
+              <div className="flex-1">
+                <div className="h-5 w-32 rounded bg-white/10" />
+                <div className="mt-2 h-3 w-20 rounded bg-white/5" />
+              </div>
+              <div className="h-9 w-16 rounded-2xl bg-white/10" />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {!isLoading && items.length === 0 ? (
-        <div className="glass px-5 py-8 text-center">
-          <p className="display text-2xl">пусто</p>
-          <p className="mt-2 text-ink-100/80">
+        <div className="glass-soft flex flex-col items-center gap-3 px-5 py-12 text-center">
+          <span className="text-4xl">🔥</span>
+          <p className="display text-xl font-semibold tracking-tight">
+            Пока пусто
+          </p>
+          <p className="max-w-xs text-sm text-ink-100/70">
             Свайпай дальше — каждый день кто-то залетает.
           </p>
+          <Link href="/swipe" className="btn-primary mt-1 !py-2 !px-4 text-sm">
+            Свайпать →
+          </Link>
         </div>
       ) : null}
 

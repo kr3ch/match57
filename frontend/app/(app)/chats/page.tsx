@@ -36,13 +36,38 @@ export default function ChatsPage() {
         </p>
       </header>
 
-      {isLoading && <p className="text-ink-200/60">Грузим…</p>}
+      {isLoading && items.length === 0 ? (
+        <ul className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li
+              key={i}
+              className="glass-soft flex animate-pulse items-center gap-3 p-3"
+            >
+              <div className="h-14 w-14 flex-none rounded-2xl bg-white/10" />
+              <div className="flex-1">
+                <div className="h-4 w-32 rounded bg-white/10" />
+                <div className="mt-2 h-3 w-48 rounded bg-white/5" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {!isLoading && items.length === 0 ? (
-        <div className="glass px-5 py-8 text-center">
-          <p className="display text-2xl">пусто</p>
-          <p className="mt-2 text-ink-100/80">
-            Получи первый мэтч — и сразу появится переписка.
+        <div className="glass-soft flex flex-col items-center gap-3 px-5 py-12 text-center">
+          <span className="text-4xl">💬</span>
+          <p className="display text-xl font-semibold tracking-tight">
+            Пока тихо
           </p>
+          <p className="max-w-xs text-sm text-ink-100/70">
+            Получи первый мэтч — и переписка появится здесь.
+          </p>
+          <Link
+            href="/swipe"
+            className="btn-primary mt-1 !py-2 !px-4 text-sm"
+          >
+            Свайпать →
+          </Link>
         </div>
       ) : null}
 
