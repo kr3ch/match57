@@ -55,10 +55,57 @@ export default function ChatPage() {
     };
   }, [conversationId, router, push]);
 
-  // Scroll to bottom on new messages.
+  // Scroll to bottom on new messages — but only if the user is already
+  // near the bottom. Otherwise show a "↓ new messages" pill so we don't
+  // yank them away from older history they're reading.
+  const [atBottom, setAtBottom] = useState(true);
+  const [unseen, setUnseen] = useState(0);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    if (atBottom) {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+      setUnseen(0);
+    } else {
+      setUnseen((u) => u + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
+
+  // Track scroll position so we can suppress auto-scroll & show the pill.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      setAtBottom(near);
+      if (near) setUnseen(0);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Mobile keyboards: when the on-screen keyboard opens, visualViewport
+  // shrinks but the document layout stays the same — meaning the
+  // composer can disappear under the keyboard. Track the offset and
+  // expose it as a CSS variable so the chat overlay can pad itself.
+  const [kbOffset, setKbOffset] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const onResize = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbOffset(offset);
+    };
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    onResize();
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, []);
 
   // Mark messages read on arrival, both via REST & per-message WS.
   const markRead = useCallback(() => {
@@ -136,8 +183,11 @@ export default function ChatPage() {
   const other = conv.other_user;
 
   return (
-    <main className="fixed inset-y-0 left-1/2 z-30 flex w-full max-w-2xl -translate-x-1/2 flex-col bg-ink-950 shadow-2xl">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
+    <main
+      className="fixed inset-y-0 left-1/2 z-30 flex w-full max-w-2xl -translate-x-1/2 flex-col bg-ink-950 shadow-2xl"
+      style={{ paddingBottom: kbOffset ? `${kbOffset}px` : undefined }}
+    >
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 pt-[max(env(safe-area-inset-top),0.75rem)] backdrop-blur">
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←
         </Link>
@@ -216,6 +266,23 @@ export default function ChatPage() {
           </p>
         )}
       </div>
+
+      {!atBottom && (
+        <button
+          type="button"
+          onClick={() => {
+            scrollRef.current?.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: "smooth",
+            });
+            setUnseen(0);
+            setAtBottom(true);
+          }}
+          className="pointer-events-auto absolute bottom-24 right-4 flex h-10 items-center gap-2 rounded-full bg-ember-500 px-4 text-sm font-medium text-white shadow-lg transition hover:bg-ember-400"
+        >
+          {unseen > 0 ? `${unseen} new` : "↓"} <span aria-hidden>↓</span>
+        </button>
+      )}
 
       <Composer
         conversationId={conversationId}
