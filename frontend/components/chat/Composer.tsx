@@ -221,15 +221,23 @@ export function Composer({
         const first = chunks[0];
         const reported =
           first instanceof Blob && first.type ? first.type : "";
-        const actualType = reported || mimeType || "application/octet-stream";
-        const blob = new Blob(chunks, { type: actualType });
-        const ext = /mp4/i.test(actualType)
+        const rawType = reported || mimeType || "application/octet-stream";
+        // Strip codec parameters before handing to the upload endpoint.
+        // The backend allow-list compares the bare type (e.g. "video/webm"),
+        // and we don't want to depend on the deployed backend version having
+        // the codec-normalisation patch — this makes recording work against
+        // *any* version of the API.
+        const baseType = rawType.split(";", 1)[0].trim().toLowerCase();
+        const blob = new Blob(chunks, { type: baseType });
+        const ext = /mp4/.test(baseType)
           ? "mp4"
-          : /ogg/i.test(actualType)
+          : /ogg/.test(baseType)
             ? "ogg"
-            : "webm";
+            : /mpeg/.test(baseType)
+              ? "mp3"
+              : "webm";
         const file = new File([blob], `${kind}-${Date.now()}.${ext}`, {
-          type: blob.type,
+          type: baseType,
         });
         await uploadAndSend(file, kind, accumulated);
       };

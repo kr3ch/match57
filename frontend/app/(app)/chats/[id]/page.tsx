@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { APIError, api } from "@/lib/api";
 import type { ChatMessage, ConversationListItem } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
+import { presenceLabel, useTicker } from "@/lib/presence";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Composer } from "@/components/chat/Composer";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -186,6 +187,21 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             };
           }),
         );
+      } else if (evt.type === "presence") {
+        // Keep conv.other.last_seen_at in sync so the header label stays
+        // accurate when the peer disconnects mid-chat.
+        setConv((prev) =>
+          prev && prev.other.user_id === evt.user_id
+            ? {
+                ...prev,
+                other: {
+                  ...prev.other,
+                  online: evt.online,
+                  last_seen_at: evt.last_seen_at ?? prev.other.last_seen_at,
+                },
+              }
+            : prev,
+        );
       }
     });
   }, [subscribe, conversationId, me]);
@@ -194,6 +210,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (!conv) return false;
     return online.has(conv.other.user_id) || conv.other.online;
   }, [conv, online]);
+
+  // Re-render the header every 30s so the "5 мин назад" label stays fresh
+  // without needing a full conversation refetch.
+  useTicker(30_000);
 
   if (!conv) {
     return <p className="text-ink-200/60">Грузим…</p>;
@@ -226,7 +246,11 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             {conv.other.age ? `, ${conv.other.age}` : ""}
           </div>
           <div className="text-[11px] text-ink-200/60">
-            {otherTyping ? "печатает…" : otherOnline ? "онлайн" : conv.other.last_seen_at ? `был(а) ${new Date(conv.other.last_seen_at).toLocaleString("ru-RU")}` : "не в сети"}
+            {presenceLabel({
+              typing: otherTyping,
+              online: otherOnline,
+              lastSeenAt: conv.other.last_seen_at,
+            })}
           </div>
         </div>
       </header>
