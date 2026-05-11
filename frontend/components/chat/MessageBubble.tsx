@@ -50,10 +50,13 @@ export function MessageBubble({
       }`}
     >
       <div
-        className={`relative rounded-2xl text-[15px] shadow-sm cursor-pointer select-none ${
-          msg.kind === "video"
-            ? "bg-transparent p-0"
-            : `px-3 py-2 ${
+        className={`relative rounded-2xl text-[15px] cursor-pointer select-none ${
+          // Photo and video have no padding / background — the media
+          // itself is the bubble (with its own rounded corners + shadow).
+          // Text, voice and file still get the colored card.
+          msg.kind === "video" || msg.kind === "photo"
+            ? "bg-transparent p-0 shadow-none"
+            : `px-3 py-2 shadow-sm ${
                 isMine
                   ? "bg-ember-500/85 text-ink-950"
                   : "bg-white/10 text-ink-50 backdrop-blur"
@@ -68,7 +71,8 @@ export function MessageBubble({
           <img
             src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
             alt=""
-            className="max-h-80 rounded-xl"
+            className="block max-h-80 w-auto rounded-2xl object-cover shadow-card ring-1 ring-white/10"
+            style={{ maxWidth: "min(320px, 70vw)" }}
           />
         ) : msg.kind === "video" && msg.attachment ? (
           <VideoBubble
