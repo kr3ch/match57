@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { APIError, api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export default function VerifyEmailPage() {
+  const router = useRouter();
+  const { me, refresh } = useAuth();
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"input" | "loading" | "ok" | "error">("input");
   const [message, setMessage] = useState<string>("");
@@ -17,6 +21,8 @@ export default function VerifyEmailPage() {
       await api.verifyEmail(code);
       setStatus("ok");
       setMessage("Готово! Email подтверждён.");
+      await refresh();
+      setTimeout(() => router.replace("/profile/edit?welcome=1"), 1500);
     } catch (e) {
       setStatus("error");
       if (e instanceof APIError) {
@@ -40,6 +46,10 @@ export default function VerifyEmailPage() {
     }
   }
 
+  const maskedEmail = me?.email
+    ? me.email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + "*".repeat(b.length) + c)
+    : "твою почту";
+
   return (
     <main className="relative min-h-dvh">
       <div
@@ -55,15 +65,13 @@ export default function VerifyEmailPage() {
             <>
               <h1 className="display text-3xl">Email подтверждён</h1>
               <p className="text-ink-100/70">{message}</p>
-              <Link href="/swipe" className="btn-primary mt-4 inline-block">
-                Открыть приложение
-              </Link>
+              <p className="text-sm text-ink-200/60 animate-pulse">Перенаправляем…</p>
             </>
           ) : (
             <>
               <h1 className="display text-3xl">Подтверди email</h1>
               <p className="text-sm text-ink-100/70">
-                Мы отправили 6-значный код на твою почту. Введи его ниже.
+                На <span className="font-medium text-ink-50">{maskedEmail}</span> отправлен 6-значный код. Введи его ниже.
               </p>
               <input
                 type="text"
