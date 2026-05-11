@@ -19,7 +19,7 @@ from app.config import ADMIN_EMAILS, CORS_ORIGIN_REGEX, CORS_ORIGINS  # noqa: E4
 from app.db import SessionLocal, engine  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.models import User  # noqa: E402
-from app.middleware import RateLimitMiddleware  # noqa: E402
+from app.middleware import NoSharedCacheMiddleware, RateLimitMiddleware  # noqa: E402
 from app.realtime.ws import router as ws_router  # noqa: E402
 from app.routers.admin import router as admin_router  # noqa: E402
 from app.routers.auth import router as auth_router  # noqa: E402
@@ -91,6 +91,10 @@ app = FastAPI(title="MATCH 57", version="2.0.0", lifespan=lifespan)
 # CORS to be outermost — otherwise short-circuit responses from
 # RateLimitMiddleware (e.g. 429) bypass CORSMiddleware and the browser shows
 # a misleading "No Access-Control-Allow-Origin" error instead of the real 429.
+# NoSharedCacheMiddleware is registered FIRST so it ends up innermost — it
+# must see the actual handler response so it can stamp Cache-Control before
+# any wrapper (rate-limit short-circuit, CORS) finalizes the headers.
+app.add_middleware(NoSharedCacheMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
