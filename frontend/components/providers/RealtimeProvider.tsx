@@ -43,7 +43,13 @@ const Ctx = createContext<RealtimeCtx | null>(null);
 
 function wsUrl() {
   if (typeof window === "undefined") return "";
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE;
+  // Next.js dev rewrites do NOT proxy WebSocket upgrades, so when running
+  // ``npm run dev`` on :3000 against a local FastAPI on :8000 we must
+  // talk to the backend directly. In production, NEXT_PUBLIC_API_BASE is
+  // set at build time to the deployed backend host.
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_BASE ||
+    (window.location.host === "localhost:3000" ? "http://localhost:8000" : "");
   if (apiBase) {
     try {
       const url = new URL(apiBase);
