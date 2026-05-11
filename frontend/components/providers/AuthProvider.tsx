@@ -27,7 +27,6 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/login",
   "/register",
-  "/verify-email",
 ]);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Auth gate: bounce protected pages to /login when unauthenticated.
   useEffect(() => {
     if (loading) return;
-    const isPublic = PUBLIC_PATHS.has(pathname) || pathname.startsWith("/verify-email");
+    const isPublic = PUBLIC_PATHS.has(pathname);
     if (!me && !isPublic) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }

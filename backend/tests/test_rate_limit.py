@@ -111,7 +111,7 @@ async def test_two_users_share_no_bucket(live_rl_client: AsyncClient):
     live_rl_client.cookies.clear()
     resp = await live_rl_client.post(
         "/api/auth/login",
-        json={"email": "a@test.com", "password": "Test1234!"},
+        json={"username": "a", "password": "Test1234!"},
     )
     assert resp.status_code == 200, resp.text
     resp = await live_rl_client.post(
