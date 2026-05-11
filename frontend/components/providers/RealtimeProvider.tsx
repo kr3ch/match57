@@ -85,8 +85,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const myId = me?.user_id ?? null;
   useEffect(() => {
-    if (!me) {
+    if (myId === null) {
       const ws = wsRef.current;
       if (ws) {
         ws.close();
@@ -135,7 +136,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       if (ws) ws.close();
       wsRef.current = null;
     };
-  }, [me]);
+    // Reconnect only when the actual logged-in user *changes* (login,
+    // logout, switch account), NOT on every me refresh / token rotation.
+  }, [myId]);
 
   const value = useMemo(
     () => ({ connected, send, subscribe, online }),

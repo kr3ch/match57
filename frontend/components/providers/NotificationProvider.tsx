@@ -89,9 +89,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
-  // Hook into realtime events to surface notifications.
+  // Hook into realtime events to surface notifications. Depend on
+  // me?.user_id (not the whole me object) so we don't churn the
+  // subscription on every auth refresh.
+  const myUserId = me?.user_id ?? null;
   useEffect(() => {
-    if (!me) return;
+    if (myUserId === null) return;
     return subscribe((evt) => {
       if (evt.type === "match") {
         push({
@@ -105,7 +108,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           body: "Откройте «Лайки», чтобы увидеть",
           href: "/likes",
         });
-      } else if (evt.type === "message" && evt.message?.from_user_id !== me.user_id) {
+      } else if (evt.type === "message" && evt.message?.from_user_id !== myUserId) {
         push({
           title: "Новое сообщение",
           body:
@@ -116,7 +119,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         });
       }
     });
-  }, [me, subscribe, push]);
+  }, [myUserId, subscribe, push]);
 
   const value = useMemo(
     () => ({ toasts, push, dismiss, permitted, requestPermission }),

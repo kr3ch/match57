@@ -28,6 +28,59 @@ export default function ChatPage() {
   const typingClearRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Reference-stable message handlers so the per-row MessageBubble can
+  // skip re-render unless the message itself changes. Without this,
+  // every parent render produced new inline closures and defeated memo.
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const myUserId = me?.user_id;
+
+  const handleReply = useCallback(
+    (id: number) => {
+      const m = messagesRef.current.find((x) => x.id === id);
+      if (m) setReply(m);
+    },
+    [],
+  );
+
+  const handleReact = useCallback(
+    (id: number, emoji: string) => {
+      if (myUserId == null) return;
+      // Optimistic toggle: react instantly, server WS echo normalises.
+      setMessages((prev) =>
+        prev.map((x) => {
+          if (x.id !== id) return x;
+          const had = x.reactions.some(
+            (r) => r.user_id === myUserId && r.emoji === emoji,
+          );
+          return {
+            ...x,
+            reactions: had
+              ? x.reactions.filter(
+                  (r) => !(r.user_id === myUserId && r.emoji === emoji),
+                )
+              : [...x.reactions, { user_id: myUserId, emoji }],
+          };
+        }),
+      );
+      api.reactMessage(id, emoji).catch((e) => {
+        if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
+      });
+    },
+    [myUserId, push],
+  );
+
+  const handleDelete = useCallback(
+    (id: number) => {
+      api.deleteMessage(id).catch((e) => {
+        if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
+      });
+    },
+    [push],
+  );
+
   // Load conversation + history once.
   useEffect(() => {
     let mounted = true;
@@ -234,37 +287,9 @@ export default function ChatPage() {
             key={m.id}
             msg={m}
             isMine={m.from_user_id === me?.user_id}
-            onReply={() => setReply(m)}
-            onReact={(emoji) => {
-              if (!me) return;
-              const meId = me.user_id;
-              // Optimistic toggle: react instantly, then let the server's
-              // WS echo normalise. Avoids the 1-2s perceived lag.
-              setMessages((prev) =>
-                prev.map((x) => {
-                  if (x.id !== m.id) return x;
-                  const had = x.reactions.some(
-                    (r) => r.user_id === meId && r.emoji === emoji,
-                  );
-                  return {
-                    ...x,
-                    reactions: had
-                      ? x.reactions.filter(
-                          (r) => !(r.user_id === meId && r.emoji === emoji),
-                        )
-                      : [...x.reactions, { user_id: meId, emoji }],
-                  };
-                }),
-              );
-              api.reactMessage(m.id, emoji).catch((e) => {
-                if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
-              });
-            }}
-            onDelete={() => {
-              api.deleteMessage(m.id).catch((e) => {
-                if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
-              });
-            }}
+            onReply={handleReply}
+            onReact={handleReact}
+            onDelete={handleDelete}
             showRead
           />
         ))}

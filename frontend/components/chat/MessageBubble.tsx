@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import type { ChatMessage } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
@@ -9,21 +9,23 @@ import { VoicePlayer } from "./VoicePlayer";
 
 const REACTIONS = ["❤️", "😂", "🔥", "😍", "😮", "😢"];
 
-export function MessageBubble({
+type MessageBubbleProps = {
+  msg: ChatMessage;
+  isMine: boolean;
+  onReply: (id: number) => void;
+  onReact: (id: number, emoji: string) => void;
+  onDelete: (id: number) => void;
+  showRead: boolean;
+};
+
+function MessageBubbleImpl({
   msg,
   isMine,
   onReply,
   onReact,
   onDelete,
   showRead,
-}: {
-  msg: ChatMessage;
-  isMine: boolean;
-  onReply: () => void;
-  onReact: (emoji: string) => void;
-  onDelete: () => void;
-  showRead: boolean;
-}) {
+}: MessageBubbleProps) {
   const [picker, setPicker] = useState(false);
   if (msg.deleted_at) {
     return (
@@ -126,7 +128,7 @@ export function MessageBubble({
           type="button"
           aria-label="Ответить"
           className="rounded-full bg-ink-900/80 px-2 py-1 text-xs"
-          onClick={onReply}
+          onClick={() => onReply(msg.id)}
         >
           ↩
         </button>
@@ -135,7 +137,7 @@ export function MessageBubble({
             type="button"
             aria-label="Удалить"
             className="rounded-full bg-ink-900/80 px-2 py-1 text-xs text-rose-300"
-            onClick={onDelete}
+            onClick={() => onDelete(msg.id)}
           >
             ✕
           </button>
@@ -149,7 +151,7 @@ export function MessageBubble({
               key={e}
               type="button"
               onClick={() => {
-                onReact(e);
+                onReact(msg.id, e);
                 setPicker(false);
               }}
               className="text-lg hover:scale-125 transition"
@@ -162,3 +164,29 @@ export function MessageBubble({
     </div>
   );
 }
+
+// Wrap in React.memo so re-rendering the message list (e.g. on every
+// WS event or scroll-position change) only re-paints bubbles whose
+// inputs actually changed. Custom comparator keeps the diff cheap.
+export const MessageBubble = memo(MessageBubbleImpl, (a, b) => {
+  if (a.isMine !== b.isMine) return false;
+  if (a.showRead !== b.showRead) return false;
+  if (a.onReply !== b.onReply) return false;
+  if (a.onReact !== b.onReact) return false;
+  if (a.onDelete !== b.onDelete) return false;
+  if (a.msg === b.msg) return true;
+  const m1 = a.msg;
+  const m2 = b.msg;
+  return (
+    m1.id === m2.id &&
+    m1.body === m2.body &&
+    m1.deleted_at === m2.deleted_at &&
+    m1.reactions.length === m2.reactions.length &&
+    m1.read_by.length === m2.read_by.length &&
+    m1.reactions.every(
+      (r, i) =>
+        r.user_id === m2.reactions[i]?.user_id &&
+        r.emoji === m2.reactions[i]?.emoji,
+    )
+  );
+});
