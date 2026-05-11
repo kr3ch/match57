@@ -147,11 +147,11 @@ export const api = {
   resendVerify() {
     return request<{ ok: true }>("/api/auth/resend-verify", { method: "POST" });
   },
-  verifyEmail(token: string) {
-    return request<{ ok: true }>(
-      `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
-      { method: "POST" },
-    );
+  verifyEmail(code: string) {
+    return request<{ ok: true }>("/api/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
   },
 
   // ── profile ──────────────────────────────────────────────────────
@@ -338,6 +338,9 @@ export const api = {
     return request<{ items: Me[]; next: number | null }>(
       `/api/admin/users${p.toString() ? `?${p}` : ""}`,
     );
+  },
+  adminUser(userId: number) {
+    return request<{ user: Me }>(`/api/admin/users/${userId}`);
   },
   adminTopReceived() {
     return request<{ items: { user_id: number; count: number }[] }>(

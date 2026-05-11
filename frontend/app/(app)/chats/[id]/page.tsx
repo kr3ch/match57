@@ -225,7 +225,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←
         </Link>
-        <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
+        <Link href={`/user/${conv.other.user_id}`} className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
           {conv.other.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -239,8 +239,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           {otherOnline && (
             <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-ink-900" />
           )}
-        </div>
-        <div className="min-w-0 flex-1">
+        </Link>
+        <Link href={`/user/${conv.other.user_id}`} className="min-w-0 flex-1">
           <div className="display text-lg leading-tight">
             {conv.other.name}
             {conv.other.age ? `, ${conv.other.age}` : ""}
@@ -252,7 +252,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               lastSeenAt: conv.other.last_seen_at,
             })}
           </div>
-        </div>
+        </Link>
       </header>
 
       <div

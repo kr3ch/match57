@@ -67,15 +67,23 @@ function RegisterWizard() {
   const next = () => setStep(ORDER[Math.min(idx + 1, ORDER.length - 1)]);
   const back = () => setStep(ORDER[Math.max(idx - 1, 0)]);
 
+  const passwordErrors = useMemo(() => {
+    const errs: string[] = [];
+    if (password.length < 6) errs.push("минимум 6 символов");
+    if (!/[A-ZА-ЯЁ]/.test(password)) errs.push("заглавная буква");
+    if (!/[!@#$%^&*()_+\-=\[\]{}|;':",./<>?`~]/.test(password)) errs.push("спецсимвол (!@#$…)");
+    return errs;
+  }, [password]);
+
   const canProceed = useMemo(() => {
     if (step === "credentials")
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 6;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && passwordErrors.length === 0;
     if (step === "name") return name.trim().length > 0;
     if (step === "age") return age >= 14 && age <= 100;
     if (step === "gender") return !!gender;
     if (step === "looking_for") return !!lookingFor;
     return true;
-  }, [step, email, password, name, age, gender, lookingFor]);
+  }, [step, email, password, passwordErrors, name, age, gender, lookingFor]);
 
   async function submit() {
     if (!gender || !lookingFor) return;
@@ -159,7 +167,7 @@ function RegisterWizard() {
             <Step
               title="Email и пароль"
               kicker="как ты будешь логиниться"
-              text="Email нужен для входа и восстановления. Пароль — минимум 6 символов."
+              text="Email нужен для входа и восстановления."
             >
               <div className="flex flex-col gap-3">
                 <input
@@ -174,10 +182,15 @@ function RegisterWizard() {
                   type="password"
                   autoComplete="new-password"
                   className="input"
-                  placeholder="пароль (минимум 6 символов)"
+                  placeholder="пароль"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                {password.length > 0 && passwordErrors.length > 0 && (
+                  <p className="text-xs text-amber-200/80">
+                    Нужно: {passwordErrors.join(", ")}
+                  </p>
+                )}
                 <input
                   className="input"
                   placeholder="имя пользователя (опционально, латиница, для ссылок)"

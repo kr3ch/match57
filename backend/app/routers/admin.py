@@ -42,6 +42,15 @@ async def list_users(
     }
 
 
+@router.get("/users/{user_id}")
+async def get_user(user_id: int, _: CurrentAdminDep, db: SessionDep) -> dict:
+    stmt = select(User).where(User.id == user_id).options(selectinload(User.photos))
+    user = await db.scalar(stmt)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    return {"user": await serialize_user(db, user, include_phone=True)}
+
+
 @router.get("/top/received")
 async def top_received(_: CurrentAdminDep, db: SessionDep) -> dict:
     return {"items": await svc.top_received(db)}

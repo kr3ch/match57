@@ -32,9 +32,21 @@ SESSION_COOKIE = SESSION_COOKIE_NAME
 # ─── Passwords ──────────────────────────────────────────────────────────────
 
 
-def hash_password(plaintext: str) -> str:
+def validate_password(plaintext: str) -> str | None:
+    """Return an error key if the password is too weak, else None."""
     if not plaintext or len(plaintext) < 6:
-        raise ValueError("password_too_short")
+        return "password_too_short"
+    if not any(c.isupper() for c in plaintext):
+        return "password_no_uppercase"
+    if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for c in plaintext):
+        return "password_no_special"
+    return None
+
+
+def hash_password(plaintext: str) -> str:
+    err = validate_password(plaintext)
+    if err:
+        raise ValueError(err)
     salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
     return bcrypt.hashpw(plaintext.encode("utf-8"), salt).decode("utf-8")
 
@@ -98,8 +110,8 @@ def verify_session(token: str | None) -> dict[str, Any] | None:
 
 
 def make_email_token() -> str:
-    """Random URL-safe verification token."""
-    return secrets.token_urlsafe(32)
+    """Random 6-digit verification code."""
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 __all__ = [
@@ -107,6 +119,7 @@ __all__ = [
     "hash_password",
     "issue_session",
     "make_email_token",
+    "validate_password",
     "verify_password",
     "verify_session",
 ]
