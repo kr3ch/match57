@@ -21,6 +21,12 @@ export function BottomNav() {
     ? [...TABS, { href: "/admin", label: "Админ", icon: "✜" }]
     : TABS;
 
+  // Open chat is rendered as a fullscreen overlay; the bottom nav would
+  // overlap the composer and waste vertical space, so hide it there.
+  if (pathname?.startsWith("/chat") && !pathname.startsWith("/chats")) {
+    return null;
+  }
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-2xl px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3"

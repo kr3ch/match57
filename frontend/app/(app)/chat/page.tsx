@@ -111,9 +111,13 @@ export default function ChatPage() {
             const filtered = m.reactions.filter(
               (r) => !(r.user_id === evt.user_id && r.emoji === evt.emoji),
             );
+            // Server is authoritative; rebuild the entry deterministically
+            // so a previously-applied optimistic update converges.
             return {
               ...m,
-              reactions: evt.removed ? filtered : [...filtered, { user_id: evt.user_id, emoji: evt.emoji }],
+              reactions: evt.removed
+                ? filtered
+                : [...filtered, { user_id: evt.user_id, emoji: evt.emoji }],
             };
           }),
         );
@@ -132,8 +136,8 @@ export default function ChatPage() {
   const other = conv.other_user;
 
   return (
-    <main className="flex h-[calc(100dvh-1.5rem)] flex-col">
-      <header className="sticky top-0 z-10 -mx-4 mb-2 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
+    <main className="fixed inset-y-0 left-1/2 z-30 flex w-full max-w-2xl -translate-x-1/2 flex-col bg-ink-950 shadow-2xl">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←
         </Link>
@@ -165,7 +169,7 @@ export default function ChatPage() {
 
       <div
         ref={scrollRef}
-        className="flex flex-1 flex-col gap-2 overflow-y-auto pb-2"
+        className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-2"
       >
         {messages.map((m) => (
           <MessageBubble
@@ -174,6 +178,26 @@ export default function ChatPage() {
             isMine={m.from_user_id === me?.user_id}
             onReply={() => setReply(m)}
             onReact={(emoji) => {
+              if (!me) return;
+              const meId = me.user_id;
+              // Optimistic toggle: react instantly, then let the server's
+              // WS echo normalise. Avoids the 1-2s perceived lag.
+              setMessages((prev) =>
+                prev.map((x) => {
+                  if (x.id !== m.id) return x;
+                  const had = x.reactions.some(
+                    (r) => r.user_id === meId && r.emoji === emoji,
+                  );
+                  return {
+                    ...x,
+                    reactions: had
+                      ? x.reactions.filter(
+                          (r) => !(r.user_id === meId && r.emoji === emoji),
+                        )
+                      : [...x.reactions, { user_id: meId, emoji }],
+                  };
+                }),
+              );
               api.reactMessage(m.id, emoji).catch((e) => {
                 if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
               });

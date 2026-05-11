@@ -28,6 +28,17 @@ export function Composer({
   const recStartRef = useRef<number>(0);
   const recChunksRef = useRef<BlobPart[]>([]);
   const recVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+
+  // The <video> preview element only mounts once recordingVideo flips
+  // to true, so we cannot bind srcObject in startVideo directly. Bind
+  // it once the element exists.
+  useEffect(() => {
+    if (recVideoRef.current && videoStream) {
+      recVideoRef.current.srcObject = videoStream;
+      recVideoRef.current.play().catch(() => {});
+    }
+  }, [videoStream]);
 
   // Typing presence — fire { type: "typing", is_typing: true } on each
   // keystroke, then stop after 2s of inactivity.
@@ -114,10 +125,6 @@ export function Composer({
   async function startVideo() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      if (recVideoRef.current) {
-        recVideoRef.current.srcObject = stream;
-        recVideoRef.current.play().catch(() => {});
-      }
       const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
       recRef.current = rec;
       recChunksRef.current = [];
@@ -128,9 +135,11 @@ export function Composer({
         const dur = Date.now() - recStartRef.current;
         stream.getTracks().forEach((t) => t.stop());
         if (recVideoRef.current) recVideoRef.current.srcObject = null;
+        setVideoStream(null);
         await uploadAndSend(blob, "video", dur);
       };
       rec.start();
+      setVideoStream(stream);
       setRecordingVideo(true);
     } catch (e) {
       push({ title: "Нет доступа к камере", body: (e as Error).message });
@@ -143,7 +152,7 @@ export function Composer({
   }
 
   return (
-    <div className="sticky bottom-0 z-20 -mx-4 border-t border-white/5 bg-ink-950/85 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur">
+    <div className="sticky bottom-0 z-20 border-t border-white/5 bg-ink-950/85 px-3 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur sm:px-4 sm:pt-3">
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1 text-xs">
           <span className="text-ink-200/70">↩ ответ на:</span>
@@ -153,12 +162,38 @@ export function Composer({
       )}
 
       {recordingVideo && (
-        <video
-          ref={recVideoRef}
-          muted
-          playsInline
-          className="mb-2 h-32 w-32 rounded-xl bg-black"
-        />
+        <div className="mb-2 flex items-center gap-3">
+          <div className="relative">
+            <video
+              ref={recVideoRef}
+              muted
+              playsInline
+              className="h-40 w-40 rounded-2xl bg-black object-cover shadow-card sm:h-48 sm:w-48"
+            />
+            <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-rose-500/90 px-2 py-0.5 text-[10px] font-medium text-white">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              REC
+            </span>
+          </div>
+          <div className="text-xs text-ink-200/70">
+            Видеосообщение записывается… <br />
+            нажми <span className="text-ink-50">📹</span> ещё раз, чтобы остановить
+          </div>
+        </div>
+      )}
+
+      {recordingAudio && (
+        <div className="mb-2 flex items-center gap-2 rounded-2xl bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-rose-400" />
+          Идёт запись голосового — нажми 🎙 ещё раз, чтобы отправить
+        </div>
+      )}
+
+      {busy && !recordingAudio && !recordingVideo && (
+        <div className="mb-2 flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2 text-xs text-ink-200/70">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white/80" />
+          Отправляется…
+        </div>
       )}
 
       <div className="flex items-end gap-2">
