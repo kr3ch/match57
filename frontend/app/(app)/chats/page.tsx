@@ -138,12 +138,20 @@ export default function ChatsPage() {
   );
 }
 
+function plural(n: number, one: string, few: string, many: string) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} ${one}`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} ${few}`;
+  return `${n} ${many}`;
+}
+
 function timeAgo(iso: string) {
   const now = Date.now();
   const t = new Date(iso).getTime();
   const diff = Math.max(0, now - t);
   if (diff < 60_000) return "только что";
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} мин`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} ч`;
-  return `${Math.floor(diff / 86400_000)} д`;
+  if (diff < 3600_000) return plural(Math.floor(diff / 60_000), "мин", "мин", "мин") + " назад";
+  if (diff < 86400_000) return plural(Math.floor(diff / 3600_000), "час", "часа", "часов") + " назад";
+  return plural(Math.floor(diff / 86400_000), "день", "дня", "дней") + " назад";
 }

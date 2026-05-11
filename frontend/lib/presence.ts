@@ -61,12 +61,19 @@ export function formatLastSeen(iso: string | null | undefined): string {
     .toString()
     .padStart(2, "0")}`;
   if (sameDay) {
-    return hr < 1 ? `${min} мин назад` : `${hr} ч назад`;
+    if (hr < 1) return `${min} мин назад`;
+    if (hr === 1) return "1 час назад";
+    if (hr >= 2 && hr <= 4) return `${hr} часа назад`;
+    return `${hr} часов назад`;
   }
   if (wasYesterday) return `вчера в ${hhmm}`;
   // Within last 7 days → weekday + time.
   const days = Math.floor(diff / 86_400_000);
-  if (days < 7) return `${days} дн назад`;
+  if (days < 7) {
+    if (days === 1) return "1 день назад";
+    if (days >= 2 && days <= 4) return `${days} дня назад`;
+    return `${days} дней назад`;
+  }
   const sameYear = date.getFullYear() === today.getFullYear();
   const dm = `${date.getDate()} ${RU_MONTHS[date.getMonth()]}`;
   return sameYear ? dm : `${dm} ${date.getFullYear()}`;
