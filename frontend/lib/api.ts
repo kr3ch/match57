@@ -1,7 +1,8 @@
 /**
- * Typed fetch client. Backend is mounted on the same origin via the Next.js
- * rewrite (``next.config.js``); on dev that proxy hits ``localhost:8000``.
- * All requests carry the auth cookie (``credentials: include``).
+ * Typed fetch client. Backend host is taken from ``NEXT_PUBLIC_API_URL`` so
+ * the same bundle works for local dev (``http://localhost:8000``) and prod
+ * (``https://match57.onrender.com``). All requests carry the auth cookie
+ * (``credentials: "include"``).
  */
 import type {
   AdminStatsV2,
@@ -18,7 +19,10 @@ import type {
   SkippedItem,
 } from "./types";
 
-const BASE = "https://match57.onrender.com";
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "https://match57.onrender.com"
+).replace(/\/+$/, "");
+const BASE = API_BASE;
 
 export class APIError extends Error {
   status: number;

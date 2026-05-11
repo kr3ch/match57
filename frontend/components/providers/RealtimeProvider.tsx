@@ -11,6 +11,8 @@ import {
   useState,
 } from "react";
 
+import { API_BASE } from "@/lib/api";
+
 import { useAuth } from "./AuthProvider";
 
 export type WSEvent =
@@ -43,8 +45,9 @@ const Ctx = createContext<RealtimeCtx | null>(null);
 
 function wsUrl() {
   if (typeof window === "undefined") return "";
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}/api/ws`;
+  // WebSocket must hit the backend (Render), not the static frontend host
+  // (Vercel). Derive ws(s):// from the same origin used by the REST client.
+  return `${API_BASE.replace(/^http/, "ws")}/api/ws`;
 }
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {

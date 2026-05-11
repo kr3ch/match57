@@ -24,6 +24,8 @@ from app.auth import (
 )
 from app.config import (
     ADMIN_EMAILS,
+    COOKIE_SAMESITE,
+    COOKIE_SECURE,
     DEFAULT_SCHOOL,
     EMAIL_VERIFY_REQUIRED,
     GENDER_CHOICES,
@@ -34,6 +36,7 @@ from app.config import (
 )
 from app.db.models import User
 from app.deps import CurrentUserDep, SessionDep
+from app.middleware import client_ip
 from app.services.email import send_verify_email
 from app.services.profiles import serialize_user
 
@@ -56,13 +59,16 @@ def _check_rate(ip: str) -> None:
 
 
 def _set_cookie(resp: Response, token: str) -> None:
+    # SameSite=None + Secure=True is REQUIRED when frontend and backend live on
+    # different sites (Vercel ↔ Render). Otherwise the browser silently drops
+    # the Set-Cookie header and every subsequent request is 401.
     resp.set_cookie(
         SESSION_COOKIE,
         token,
         max_age=SESSION_TTL_DAYS * 86400,
         httponly=True,
-        samesite="lax",
-        secure=False,  # set True behind HTTPS in prod
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
         path="/",
     )
 
@@ -169,8 +175,7 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
 
 @router.post("/login")
 async def login(payload: LoginIn, request: Request, response: Response, db: SessionDep) -> dict:
-    ip = request.client.host if request.client else "unknown"
-    _check_rate(ip)
+    _check_rate(client_ip(request))
 
     email = str(payload.email).lower().strip()
     user = await db.scalar(select(User).where(User.email == email))
@@ -187,7 +192,14 @@ async def login(payload: LoginIn, request: Request, response: Response, db: Sess
 
 @router.post("/logout")
 async def logout(response: Response) -> dict:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    # Deletion cookie must carry the same SameSite/Secure attributes as the
+    # original, otherwise some browsers refuse to overwrite it.
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path="/",
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+    )
     return {"ok": True}
 
 
