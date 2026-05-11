@@ -105,7 +105,9 @@ export type ChatMessage = {
   };
   reply_to_id: number | null;
   reactions: { user_id: number; emoji: string }[];
-  read_by: { user_id: number; read_at: string }[];
+  // Backend serialises this as a flat list of user ids — see
+  // backend/app/services/messaging.py::serialize_message.
+  read_by: number[];
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
