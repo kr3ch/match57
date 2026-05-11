@@ -7,6 +7,7 @@ import { useEffect } from "react";
 
 import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
+import { formatLastSeen, useTicker } from "@/lib/presence";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
 export default function ChatsPage() {
@@ -16,6 +17,8 @@ export default function ChatsPage() {
     { refreshInterval: 30000 },
   );
   const { subscribe, online } = useRealtime();
+  // Keep the "N мин" labels fresh between full refetches.
+  useTicker(30_000);
 
   useEffect(() => {
     return subscribe((evt) => {
@@ -117,6 +120,13 @@ export default function ChatsPage() {
                         {c.unread_count}
                       </span>
                     )}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-ink-200/60">
+                    {isOnline
+                      ? "в сети"
+                      : c.other.last_seen_at
+                        ? `был(а) ${formatLastSeen(c.other.last_seen_at)}`
+                        : "не в сети"}
                   </div>
                 </div>
               </Link>

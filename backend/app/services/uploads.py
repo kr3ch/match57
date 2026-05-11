@@ -81,9 +81,24 @@ def _resize_image(data: bytes, mime: str, max_side: int = 1600, quality: int = 8
         return data
 
 
+def _normalize_mime(raw: str | None) -> str:
+    """Strip codec / charset parameters and lowercase.
+
+    The browser MediaRecorder emits blobs whose ``type`` includes codec
+    hints (e.g. ``video/webm;codecs=vp9,opus``). FastAPI surfaces this
+    verbatim as ``UploadFile.content_type``, which then fails the
+    membership check against ``ALLOWED_MEDIA_MIMES``. Strip everything
+    after the first ``;`` so we compare apples to apples.
+    """
+    if not raw:
+        return ""
+    return raw.split(";", 1)[0].strip().lower()
+
+
 async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
     """Validate the upload + write it to disk under the user's folder."""
-    if file.content_type not in ALLOWED_MEDIA_MIMES:
+    mime = _normalize_mime(file.content_type)
+    if mime not in ALLOWED_MEDIA_MIMES:
         raise HTTPException(status_code=415, detail=f"unsupported_mime:{file.content_type}")
     raw = await file.read()
     if len(raw) > MAX_BYTES:
@@ -91,7 +106,8 @@ async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
     if not raw:
         raise HTTPException(status_code=400, detail="empty_file")
 
-    mime = file.content_type
+    # Use the normalized MIME going forward so all downstream lookups
+    # (extension, kind, response payload) see a canonical value.
     kind = _classify(mime)
 
     width: int | None = None

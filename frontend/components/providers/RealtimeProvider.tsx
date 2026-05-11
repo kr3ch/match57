@@ -39,9 +39,22 @@ type RealtimeCtx = {
   send: (msg: object) => void;
   subscribe: (l: Listener) => () => void;
   online: Set<number>;
+  /**
+   * Increments every time the WebSocket *re-opens* after being closed.
+   * Consumers (e.g. chat page) can depend on this to refetch missed
+   * history when the underlying socket bounces — Render/Vercel idle
+   * timeouts and mobile network handoffs make this critical.
+   */
+  reconnectNonce: number;
 };
 
 const Ctx = createContext<RealtimeCtx | null>(null);
+
+// Keepalive cadence — must stay under the proxy idle timeout. Render's edge
+// closes WS sockets after ~100s of inactivity, so 25s is comfortably safe.
+const PING_INTERVAL_MS = 25_000;
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
 
 function wsUrl() {
   if (typeof window === "undefined") return "";
@@ -54,9 +67,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const [connected, setConnected] = useState(false);
   const [online, setOnline] = useState<Set<number>>(new Set());
+  const [reconnectNonce, setReconnectNonce] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef<Set<Listener>>(new Set());
   const reconnectTimerRef = useRef<number | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
+  const attemptRef = useRef(0);
+  const openedOnceRef = useRef(false);
 
   const subscribe = useCallback((l: Listener) => {
     listenersRef.current.add(l);
@@ -79,26 +96,72 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         ws.close();
         wsRef.current = null;
       }
+      if (pingTimerRef.current) clearInterval(pingTimerRef.current);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       setConnected(false);
+      openedOnceRef.current = false;
+      attemptRef.current = 0;
       return;
     }
 
     let closedByEffect = false;
 
+    const scheduleReconnect = () => {
+      if (closedByEffect) return;
+      const attempt = Math.min(attemptRef.current, 6);
+      const base = Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS);
+      // Add ±30% jitter so reconnect storms don't synchronize across tabs.
+      const jitter = base * (0.7 + Math.random() * 0.6);
+      attemptRef.current += 1;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = window.setTimeout(connect, jitter);
+    };
+
     const connect = () => {
-      const ws = new WebSocket(wsUrl());
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl());
+      } catch {
+        scheduleReconnect();
+        return;
+      }
       wsRef.current = ws;
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => {
+        setConnected(true);
+        attemptRef.current = 0;
+        if (openedOnceRef.current) {
+          // Notify consumers (chat page) so they can refetch history that
+          // arrived while we were offline.
+          setReconnectNonce((n) => n + 1);
+        }
+        openedOnceRef.current = true;
+        if (pingTimerRef.current) clearInterval(pingTimerRef.current);
+        pingTimerRef.current = window.setInterval(() => {
+          const sock = wsRef.current;
+          if (sock && sock.readyState === WebSocket.OPEN) {
+            try {
+              sock.send(JSON.stringify({ type: "ping" }));
+            } catch {
+              /* ignore — onclose will fire */
+            }
+          }
+        }, PING_INTERVAL_MS);
+      };
       ws.onclose = () => {
         setConnected(false);
-        if (!closedByEffect) {
-          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-          reconnectTimerRef.current = window.setTimeout(connect, 1500);
+        if (pingTimerRef.current) {
+          clearInterval(pingTimerRef.current);
+          pingTimerRef.current = null;
         }
+        scheduleReconnect();
+      };
+      ws.onerror = () => {
+        // Let onclose drive reconnect — onerror always precedes it.
       };
       ws.onmessage = (evt) => {
         try {
           const data: WSEvent = JSON.parse(evt.data);
+          if (data.type === "pong") return;
           if (data.type === "presence") {
             setOnline((prev) => {
               const next = new Set(prev);
@@ -114,10 +177,34 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       };
     };
 
+    // Reconnect immediately when the tab regains focus / network. Mobile
+    // browsers often pause sockets in background — without this the user
+    // sees "online" but messages never arrive until they retype.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const sock = wsRef.current;
+      if (!sock || sock.readyState === WebSocket.CLOSED) {
+        attemptRef.current = 0;
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        connect();
+      }
+    };
+    const onOnline = () => {
+      attemptRef.current = 0;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      const sock = wsRef.current;
+      if (!sock || sock.readyState !== WebSocket.OPEN) connect();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+
     connect();
     return () => {
       closedByEffect = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (pingTimerRef.current) clearInterval(pingTimerRef.current);
       const ws = wsRef.current;
       if (ws) ws.close();
       wsRef.current = null;
@@ -125,8 +212,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   }, [me]);
 
   const value = useMemo(
-    () => ({ connected, send, subscribe, online }),
-    [connected, send, subscribe, online],
+    () => ({ connected, send, subscribe, online, reconnectNonce }),
+    [connected, send, subscribe, online, reconnectNonce],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

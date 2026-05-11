@@ -59,7 +59,14 @@ ALLOWED_MEDIA_MIMES = (
 PROFILE_PHOTO_MAX = 3
 
 # ─── Rate limit ─────────────────────────────────────────────────────────────
-RATE_LIMIT_SECONDS = float(os.environ.get("RATE_LIMIT_SECONDS", "0.7"))
+# Minimum gap between consecutive *write* POSTs from one user.
+# 0.7s was too coarse for the chat: a single user-action like
+# "upload video → send message" fires two sequential POSTs from one
+# logical click, and that pair must not 429. We use a generous lower
+# bound here (~4 ops/sec) which still defangs the bot.py-era spam loops
+# the middleware was originally meant to cover. Override via the
+# RATE_LIMIT_SECONDS env var if you want to tighten it back up.
+RATE_LIMIT_SECONDS = float(os.environ.get("RATE_LIMIT_SECONDS", "0.25"))
 
 # ─── App-wide ───────────────────────────────────────────────────────────────
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
