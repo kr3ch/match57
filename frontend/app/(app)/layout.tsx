@@ -15,19 +15,10 @@ export default function AppLayout({
   const pathname = usePathname() || "";
   const router = useRouter();
 
-  // Require email verification before accessing the app.
-  useEffect(() => {
-    if (loading || !me) return;
-    if (me.email_verified === false) {
-      router.replace("/verify-email");
-    }
-  }, [loading, me, router]);
-
   // Require at least one photo before accessing the app.
   const onEditPage = pathname.startsWith("/profile/edit");
   useEffect(() => {
     if (loading || !me) return;
-    if (me.email_verified === false) return;
     if (me.photos.length === 0 && !onEditPage) {
       router.replace("/profile/edit?welcome=1");
     }

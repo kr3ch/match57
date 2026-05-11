@@ -46,9 +46,8 @@ function RegisterWizard() {
   const refId = ref ? Number(ref) || undefined : undefined;
 
   const [step, setStep] = useState<Step>("agreement");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [age, setAge] = useState<number>(16);
   const [gender, setGender] = useState<Gender | null>(null);
@@ -77,22 +76,21 @@ function RegisterWizard() {
 
   const canProceed = useMemo(() => {
     if (step === "credentials")
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && passwordErrors.length === 0;
+      return username.trim().length > 0 && passwordErrors.length === 0;
     if (step === "name") return name.trim().length > 0;
     if (step === "age") return age >= 14 && age <= 100;
     if (step === "gender") return !!gender;
     if (step === "looking_for") return !!lookingFor;
     return true;
-  }, [step, email, password, passwordErrors, name, age, gender, lookingFor]);
+  }, [step, username, password, passwordErrors, name, age, gender, lookingFor]);
 
   async function submit() {
     if (!gender || !lookingFor) return;
     setError(null);
     setSubmitting(true);
     const payload: RegisterPayload = {
-      email: email.trim().toLowerCase(),
+      username: username.trim(),
       password,
-      username: username.trim() || undefined,
       name: name.trim(),
       age,
       gender,
@@ -104,12 +102,10 @@ function RegisterWizard() {
     try {
       const res = await api.register(payload);
       setMe(res.user);
-      router.replace(res.user.email_verified ? "/profile/edit?welcome=1" : "/verify-email");
+      router.replace("/profile/edit?welcome=1");
     } catch (e) {
       if (e instanceof APIError) {
-        if (e.status === 409 && e.detail === "user_exists")
-          setError("Email уже зарегистрирован");
-        else if (e.status === 409 && e.detail === "username_taken")
+        if (e.status === 409 && e.detail === "username_taken")
           setError("Это имя пользователя занято");
         else setError(e.detail);
       } else {
@@ -165,18 +161,25 @@ function RegisterWizard() {
 
           {step === "credentials" && (
             <Step
-              title="Email и пароль"
-              kicker="как ты будешь логиниться"
-              text="Email нужен для входа и восстановления."
+              title="Логин и пароль"
+              kicker="как ты будешь входить"
+              text="Придумай логин (латиница, цифры, _) и пароль."
             >
               <div className="flex flex-col gap-3">
                 <input
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   className="input"
-                  placeholder="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="логин"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_]/g, "")
+                        .slice(0, 32),
+                    )
+                  }
                 />
                 <input
                   type="password"
@@ -191,19 +194,6 @@ function RegisterWizard() {
                     Нужно: {passwordErrors.join(", ")}
                   </p>
                 )}
-                <input
-                  className="input"
-                  placeholder="имя пользователя (опционально, латиница, для ссылок)"
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9_]/g, "")
-                        .slice(0, 32),
-                    )
-                  }
-                />
                 <Nav back={back} next={next} canProceed={canProceed} />
               </div>
             </Step>
@@ -302,8 +292,7 @@ function RegisterWizard() {
           {step === "review" && (
             <Step title="Готово?" kicker="последний взгляд">
               <div className="glass-soft mt-2 grid gap-2 p-5 text-sm">
-                <Row k="email" v={email} />
-                {username && <Row k="username" v={`@${username}`} />}
+                <Row k="логин" v={`@${username}`} />
                 <Row k="имя" v={name} />
                 <Row k="возраст" v={String(age)} />
                 <Row k="пол" v={gender || "—"} />

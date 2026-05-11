@@ -111,9 +111,8 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
 }
 
 export type RegisterPayload = {
-  email: string;
+  username: string;
   password: string;
-  username?: string;
   name: string;
   age: number;
   gender: Gender;
@@ -132,10 +131,10 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
-  login(email: string, password: string) {
+  login(username: string, password: string) {
     return request<{ ok: true; user: Me }>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
   },
   logout() {
@@ -144,15 +143,7 @@ export const api = {
   me() {
     return request<{ user: Me }>("/api/auth/me");
   },
-  resendVerify() {
-    return request<{ ok: true }>("/api/auth/resend-verify", { method: "POST" });
-  },
-  verifyEmail(code: string) {
-    return request<{ ok: true }>("/api/auth/verify-email", {
-      method: "POST",
-      body: JSON.stringify({ code }),
-    });
-  },
+
 
   // ── profile ──────────────────────────────────────────────────────
   myProfile() {
