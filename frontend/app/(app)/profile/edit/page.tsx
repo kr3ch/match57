@@ -27,6 +27,7 @@ function EditProfile() {
   const [phone, setPhone] = useState("");
   const [age, setAge] = useState<number>(16);
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     api.myProfile().then((p) => {
@@ -97,6 +98,39 @@ function EditProfile() {
         <p className="glass-soft px-5 py-4 text-sm">
           Добавь хотя бы одно фото — без фото тебя не покажут в стеке.
         </p>
+      )}
+
+      {!profile.email_verified && (
+        <div className="glass-soft flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 text-xl">✉️</span>
+            <div className="text-sm">
+              <div className="font-medium">Подтверди email</div>
+              <div className="text-ink-200/70">
+                Мы отправили ссылку на <span className="text-ink-50">{profile.email}</span>.
+                Открой её — и анкета будет полностью активна.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={resending}
+            className="btn-ghost shrink-0 self-start sm:self-auto"
+            onClick={async () => {
+              setResending(true);
+              try {
+                await api.resendVerify();
+                push({ title: "Отправлено", body: "Проверь почту" });
+              } catch (e) {
+                if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
+              } finally {
+                setResending(false);
+              }
+            }}
+          >
+            {resending ? "Отправляем…" : "Отправить ещё раз"}
+          </button>
+        </div>
       )}
 
       <section className="glass flex flex-col gap-3 p-5">
