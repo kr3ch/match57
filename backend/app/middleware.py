@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from app.config import RATE_LIMIT_SECONDS
+from app.config import RATE_LIMIT_SECONDS, SESSION_COOKIE_NAME
 
 _last_seen: dict[str, float] = {}
 
@@ -27,6 +27,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         # Tests / CI: skip rate-limit entirely.
         if os.environ.get("DISABLE_RATE_LIMIT") == "1" or "PYTEST_CURRENT_TEST" in os.environ:
+            return await call_next(request)
+        # Authenticated users: skip the global rate-limit entirely. A normal
+        # page-load fires 3-5 concurrent SWR queries; a 0.7s shared bucket
+        # falsely rejects them as "rate_limited". The limit is intended to
+        # slow down anonymous /api/* spam, which is what we still cover
+        # below.
+        if request.cookies.get(SESSION_COOKIE_NAME):
             return await call_next(request)
         ip = request.client.host if request.client else "anon"
         now = time.time()
