@@ -50,8 +50,7 @@ app = FastAPI(title="MATCH 57", version="2.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://match57.vercel.app",
-        "http://localhost:3000",
+        "https://match57.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
