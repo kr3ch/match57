@@ -10,7 +10,10 @@ from typing import Any
 
 
 def _iso(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt else None
+    if not dt:
+        return None
+    s = dt.isoformat()
+    return s if s.endswith("Z") or "+" in s else s + "Z"
 
 
 def message_event(message: dict[str, Any]) -> dict[str, Any]:

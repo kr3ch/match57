@@ -32,6 +32,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [otherTyping, setOtherTyping] = useState(false);
   const typingClearRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
 
   // Mark-read coordination.
   const markReadTimerRef = useRef<number | null>(null);
@@ -80,9 +81,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     // reconnectNonce intentionally in deps: refetch on WS reconnect.
   }, [conversationId, router, push, reconnectNonce]);
 
-  // Scroll to bottom on new messages.
+  // Scroll to bottom on new messages. Instant on first load, smooth after.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const behavior = initialScrollDone.current ? "smooth" : "instant";
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    if (messages.length > 0) initialScrollDone.current = true;
   }, [messages.length]);
 
   // Mark unread messages read — coalesced so we don't trip the rate limiter.
@@ -220,7 +225,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <main className="flex h-[calc(100dvh-1.5rem)] flex-col">
+    <main className="flex h-[calc(100dvh-9rem)] sm:h-[calc(100dvh-10rem)] flex-col">
       <header className="sticky top-0 z-10 -mx-4 mb-2 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←
