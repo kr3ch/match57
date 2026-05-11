@@ -18,7 +18,7 @@ import type {
   SkippedItem,
 } from "./types";
 
-const BASE = "";
+const BASE = "https://match57.onrender.com/";
 
 export class APIError extends Error {
   status: number;
