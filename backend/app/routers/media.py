@@ -25,28 +25,32 @@ async def upload(file: UploadFile, user: CurrentUserDep) -> dict:
     return await store_upload(file, user.id)
 
 
+_CONTENT_TYPE_BY_EXT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".webm": "video/webm",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".m4v": "video/x-m4v",
+    ".3gp": "video/3gpp",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".wav": "audio/wav",
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".zip": "application/zip",
+}
+
+
 def _content_type_for(name: str) -> str:
     name = name.lower()
-    if name.endswith(".jpg") or name.endswith(".jpeg"):
-        return "image/jpeg"
-    if name.endswith(".png"):
-        return "image/png"
-    if name.endswith(".webp"):
-        return "image/webp"
-    if name.endswith(".webm"):
-        return "video/webm"
-    if name.endswith(".mp4"):
-        return "video/mp4"
-    if name.endswith(".ogg"):
-        return "audio/ogg"
-    if name.endswith(".mp3"):
-        return "audio/mpeg"
-    if name.endswith(".pdf"):
-        return "application/pdf"
-    if name.endswith(".txt"):
-        return "text/plain"
-    if name.endswith(".zip"):
-        return "application/zip"
+    for ext, ct in _CONTENT_TYPE_BY_EXT.items():
+        if name.endswith(ext):
+            return ct
     return "application/octet-stream"
 
 
