@@ -153,17 +153,47 @@ export function Composer({
     setRecElapsedMs(0);
   }
 
+  // Pick the best MIME the browser actually supports. Safari prefers MP4 +
+  // AAC, Chrome/Firefox happily produce WebM/Opus. Picking blindly used to
+  // throw on Safari and bubble up as "Нет доступа к камере", which is wrong.
+  function pickMime(kind: RecordingKind): string {
+    const candidates =
+      kind === "voice"
+        ? ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
+        : [
+            "video/webm;codecs=vp9,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm",
+            "video/mp4;codecs=h264,aac",
+            "video/mp4",
+          ];
+    const MR = typeof MediaRecorder !== "undefined" ? MediaRecorder : null;
+    if (!MR) return candidates[0];
+    for (const m of candidates) {
+      try {
+        if (MR.isTypeSupported(m)) return m;
+      } catch {
+        /* ignore */
+      }
+    }
+    return "";
+  }
+
   async function startRecording(kind: RecordingKind) {
     if (recRef.current) return;
+    if (typeof window !== "undefined" && !window.MediaRecorder) {
+      push({ title: "Браузер не поддерживает запись", body: "Обнови браузер." });
+      return;
+    }
     try {
       const constraints: MediaStreamConstraints =
         kind === "voice"
           ? { audio: true }
-          : { video: { facingMode: "user" }, audio: true };
+          : { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       recStreamRef.current = stream;
-      const mimeType = kind === "voice" ? "audio/webm" : "video/webm";
-      const rec = new MediaRecorder(stream, { mimeType });
+      const mimeType = pickMime(kind);
+      const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       recRef.current = rec;
       recChunksRef.current = [];
       recCancelledRef.current = false;
@@ -186,8 +216,22 @@ export function Composer({
           stream?.getTracks().forEach((t) => t.stop());
           return;
         }
-        const blob = new Blob(chunks, { type: mimeType });
-        await uploadAndSend(blob, kind, accumulated);
+        // Use whatever MIME the first chunk actually reports; fall back to
+        // the requested mimeType (Safari sometimes drops the codec hint).
+        const first = chunks[0];
+        const reported =
+          first instanceof Blob && first.type ? first.type : "";
+        const actualType = reported || mimeType || "application/octet-stream";
+        const blob = new Blob(chunks, { type: actualType });
+        const ext = /mp4/i.test(actualType)
+          ? "mp4"
+          : /ogg/i.test(actualType)
+            ? "ogg"
+            : "webm";
+        const file = new File([blob], `${kind}-${Date.now()}.${ext}`, {
+          type: blob.type,
+        });
+        await uploadAndSend(file, kind, accumulated);
       };
 
       // 200ms timeslice so we always have at least one chunk by stop-time,
