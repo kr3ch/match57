@@ -97,3 +97,39 @@ async def test_dislike_and_skipped(client: AsyncClient):
     # Back in browse.
     items = (await client.get("/api/browse")).json()["items"]
     assert any(i["user_id"] == b_id for i in items)
+
+
+@pytest.mark.asyncio
+async def test_looking_for_affects_browse(client: AsyncClient):
+    """``PATCH /api/profile`` with a new looking_for must change which
+    profiles the browse deck returns: switching to "Парни" hides Девушка,
+    switching to "Все равно" shows both genders."""
+    # Audience: one Парень, one Девушка.
+    await register_user(client, email="m@test.com", name="M", gender="Парень")
+    await client.post("/api/auth/logout")
+    await register_user(client, email="w@test.com", name="W", gender="Девушка")
+    await client.post("/api/auth/logout")
+
+    # Viewer starts with looking_for=Все равно → sees both.
+    await register_user(
+        client, email="v@test.com", name="V", gender="Девушка", looking_for="Все равно"
+    )
+    names = {i["name"] for i in (await client.get("/api/browse")).json()["items"]}
+    assert {"M", "W"} <= names
+
+    # Switch to Парни → only Парень.
+    resp = await client.patch("/api/profile", json={"looking_for": "Парни"})
+    assert resp.status_code == 200
+    assert resp.json()["profile"]["looking_for"] == "Парни"
+    names = {i["name"] for i in (await client.get("/api/browse")).json()["items"]}
+    assert names == {"M"}
+
+    # Switch to Девушки → only Девушка.
+    resp = await client.patch("/api/profile", json={"looking_for": "Девушки"})
+    assert resp.status_code == 200
+    names = {i["name"] for i in (await client.get("/api/browse")).json()["items"]}
+    assert names == {"W"}
+
+    # Invalid value rejected.
+    resp = await client.patch("/api/profile", json={"looking_for": "bogus"})
+    assert resp.status_code == 422
