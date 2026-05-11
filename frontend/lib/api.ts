@@ -34,8 +34,56 @@ export class APIError extends Error {
   }
 }
 
+// 429 retry policy. Render's rate limiter clears in 0.7s; we wait a touch
+// longer and retry up to 4 times so legitimate user actions (sending a
+// message right after marking the conversation read, or sending an
+// attachment right after upload) never bubble up as "not delivered".
+const RETRY_429_ATTEMPTS = 4;
+const RETRY_429_BASE_MS = 600;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function backoffMs(attempt: number, retryAfter: string | null): number {
+  if (retryAfter) {
+    const sec = Number(retryAfter);
+    if (Number.isFinite(sec) && sec > 0) return Math.min(sec * 1000, 8000);
+  }
+  // 600ms, 1.2s, 2.4s, 4.8s + jitter.
+  const base = Math.min(RETRY_429_BASE_MS * 2 ** attempt, 6000);
+  return base * (0.85 + Math.random() * 0.3);
+}
+
+async function _readError(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return typeof body.detail === "string"
+      ? body.detail
+      : body.message || JSON.stringify(body);
+  } catch {
+    try {
+      return await res.text();
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+  }
+}
+
+async function _fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt < RETRY_429_ATTEMPTS; attempt += 1) {
+    const res = await fetch(url, init);
+    if (res.status !== 429) return res;
+    if (attempt === RETRY_429_ATTEMPTS - 1) return res;
+    const wait = backoffMs(attempt, res.headers.get("retry-after"));
+    await sleep(wait);
+  }
+  // Unreachable — kept for type narrowing.
+  return fetch(url, init);
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await _fetchWithRetry(`${BASE}${path}`, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -44,37 +92,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail =
-        typeof body.detail === "string"
-          ? body.detail
-          : body.message || JSON.stringify(body);
-    } catch {
-      detail = await res.text();
-    }
-    throw new APIError(res.status, detail || `HTTP ${res.status}`);
+    throw new APIError(res.status, (await _readError(res)) || `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
 async function requestForm<T>(path: string, body: FormData): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await _fetchWithRetry(`${BASE}${path}`, {
     method: "POST",
     credentials: "include",
     body,
   });
   if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = body.detail || JSON.stringify(body);
-    } catch {
-      detail = await res.text();
-    }
-    throw new APIError(res.status, detail || `HTTP ${res.status}`);
+    throw new APIError(res.status, (await _readError(res)) || `HTTP ${res.status}`);
   }
   return (await res.json()) as T;
 }

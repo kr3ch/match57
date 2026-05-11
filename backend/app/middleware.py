@@ -89,7 +89,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         bucket = _rate_bucket(request)
         now = time.time()
         last = _last_seen.get(bucket, 0.0)
-        if now - last < RATE_LIMIT_SECONDS:
-            return JSONResponse({"detail": "rate_limited"}, status_code=429)
+        gap = now - last
+        if gap < RATE_LIMIT_SECONDS:
+            # Hint the client how long until the bucket clears so its
+            # retry-with-backoff can wait exactly the right amount.
+            wait = max(RATE_LIMIT_SECONDS - gap, 0.05)
+            return JSONResponse(
+                {"detail": "rate_limited"},
+                status_code=429,
+                headers={"Retry-After": f"{wait:.2f}"},
+            )
         _last_seen[bucket] = now
         return await call_next(request)
