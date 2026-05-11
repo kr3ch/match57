@@ -30,15 +30,37 @@ export default function AdminUserDetailPage() {
       });
   }, [id, push]);
 
-  if (!profile) return <p className="text-ink-200/60">Грузим…</p>;
+  if (!profile) {
+    return (
+      <main className="flex flex-col gap-4">
+        <div className="glass-soft animate-pulse p-3">
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="aspect-[3/4] rounded-2xl bg-white/5"
+              />
+            ))}
+          </div>
+          <div className="mt-3 h-7 w-40 rounded bg-white/10" />
+          <div className="mt-2 h-4 w-56 rounded bg-white/5" />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex flex-col gap-5">
-      <header className="flex items-baseline justify-between">
-        <Link href="/admin/users" className="btn-ghost">
-          ← к списку
+      <header className="flex items-center justify-between gap-3">
+        <Link
+          href="/admin/users"
+          className="inline-flex items-center gap-1 text-xs text-ink-100/60 transition hover:text-ink-100"
+        >
+          ← К списку
         </Link>
-        <span className="label">id: {profile.user_id}</span>
+        <span className="rounded-full bg-white/5 px-3 py-1 text-xs tabular-nums text-ink-100/70">
+          id: {profile.user_id}
+        </span>
       </header>
 
       <div className="glass overflow-hidden p-3">
