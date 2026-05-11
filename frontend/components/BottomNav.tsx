@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useRealtime } from "@/components/providers/RealtimeProvider";
 
-const TABS = [
+type Tab = { href: string; label: string; icon: string };
+
+const TABS: Tab[] = [
   { href: "/swipe", label: "Поиск", icon: "✦" },
   { href: "/likes", label: "Лайки", icon: "❤" },
   { href: "/matches", label: "Мэтчи", icon: "✸" },
@@ -14,12 +19,52 @@ const TABS = [
   { href: "/profile", label: "Я", icon: "◍" },
 ];
 
+type Bubble = { id: number; href: string };
+
+let _bubbleSeq = 1;
+
 export function BottomNav() {
   const pathname = usePathname();
   const { me } = useAuth();
+  const { subscribe } = useRealtime();
   const tabs = me?.is_admin
     ? [...TABS, { href: "/admin", label: "Админ", icon: "✜" }]
     : TABS;
+
+  // Floating "+1" bubbles, anchored to whichever tab href is most relevant
+  // for the incoming realtime event. They auto-disappear after a short
+  // delay; the user sees one bubble per event, even if they fire rapidly.
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const timeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    if (!me) return;
+    const unsub = subscribe((evt) => {
+      let href: string | null = null;
+      if (evt.type === "like") href = "/likes";
+      else if (evt.type === "match") href = "/matches";
+      if (!href) return;
+      if (pathname?.startsWith(href)) return;
+      const id = _bubbleSeq++;
+      setBubbles((prev) => [...prev, { id, href: href! }]);
+      const t = setTimeout(() => {
+        setBubbles((prev) => prev.filter((b) => b.id !== id));
+        timeoutsRef.current.delete(id);
+      }, 1800);
+      timeoutsRef.current.set(id, t);
+    });
+    return () => {
+      unsub();
+    };
+  }, [me, subscribe, pathname]);
+
+  useEffect(() => {
+    const timeouts = timeoutsRef.current;
+    return () => {
+      timeouts.forEach((t) => clearTimeout(t));
+      timeouts.clear();
+    };
+  }, []);
 
   return (
     <nav
@@ -29,6 +74,7 @@ export function BottomNav() {
       <div className="glass flex justify-between gap-1 px-2 py-2 sm:gap-3 sm:px-3">
         {tabs.map((t) => {
           const active = pathname?.startsWith(t.href);
+          const tabBubbles = bubbles.filter((b) => b.href === t.href);
           return (
             <Link
               key={t.href}
@@ -52,6 +98,21 @@ export function BottomNav() {
                 {t.icon}
               </span>
               <span>{t.label}</span>
+
+              <AnimatePresence>
+                {tabBubbles.map((b) => (
+                  <motion.span
+                    key={b.id}
+                    initial={{ opacity: 0, y: 6, scale: 0.8 }}
+                    animate={{ opacity: 1, y: -22, scale: 1 }}
+                    exit={{ opacity: 0, y: -38, scale: 0.95 }}
+                    transition={{ duration: 0.45, ease: "easeOut" }}
+                    className="pointer-events-none absolute -top-2 right-1 select-none rounded-full bg-ember-500/90 px-2 py-0.5 text-[10px] font-semibold tracking-normal text-ember-50 shadow-[0_4px_20px_rgba(244,134,90,0.55)] ring-1 ring-ember-200/60"
+                  >
+                    +1
+                  </motion.span>
+                ))}
+              </AnimatePresence>
             </Link>
           );
         })}

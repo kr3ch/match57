@@ -398,8 +398,16 @@ export function Composer({
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
-              const isImg = f.type.startsWith("image/");
-              const isVid = f.type.startsWith("video/");
+              // Some browsers (notably iOS Safari for .mov / Android for some
+              // .m4v) hand us a File with empty `type`. Fall back to the
+              // filename extension so the user still gets a video bubble.
+              const name = f.name.toLowerCase();
+              const isImg =
+                f.type.startsWith("image/") ||
+                /\.(jpe?g|png|webp|gif)$/.test(name);
+              const isVid =
+                f.type.startsWith("video/") ||
+                /\.(mp4|webm|mov|m4v|3gp)$/.test(name);
               await uploadAndSend(f, isImg ? "photo" : isVid ? "video" : "file");
               e.target.value = "";
             }}

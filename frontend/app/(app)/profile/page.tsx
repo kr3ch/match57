@@ -59,21 +59,30 @@ export default function ProfilePage() {
         </motion.p>
       ) : null}
 
-      <div className="glass-soft px-4 py-4 text-sm">
-        <div className="text-xs uppercase tracking-[0.18em] text-ink-200/70">
-          email
+      {profile.username || profile.phone ? (
+        <div className="glass-soft px-4 py-4 text-sm">
+          {profile.username ? (
+            <>
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-200/70">
+                логин
+              </div>
+              <div className="mt-1">@{profile.username}</div>
+            </>
+          ) : null}
+          {profile.phone ? (
+            <>
+              <div
+                className={`text-xs uppercase tracking-[0.18em] text-ink-200/70 ${
+                  profile.username ? "mt-3" : ""
+                }`}
+              >
+                телефон
+              </div>
+              <div className="mt-1">{profile.phone}</div>
+            </>
+          ) : null}
         </div>
-        <div className="mt-1">{profile.email}</div>
-        {profile.email_verified ? (
-          <span className="mt-1 inline-block rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-200">
-            подтверждён
-          </span>
-        ) : (
-          <span className="mt-1 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-200">
-            не подтверждён
-          </span>
-        )}
-      </div>
+      ) : null}
 
       <Link href="/settings" className="btn-ghost justify-between">
         <span>настройки и приглашения</span>
