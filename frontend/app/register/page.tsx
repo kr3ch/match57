@@ -104,7 +104,7 @@ function RegisterWizard() {
     try {
       const res = await api.register(payload);
       setMe(res.user);
-      router.replace("/profile/edit?welcome=1");
+      router.replace(res.user.email_verified ? "/profile/edit?welcome=1" : "/verify-email");
     } catch (e) {
       if (e instanceof APIError) {
         if (e.status === 409 && e.detail === "user_exists")
