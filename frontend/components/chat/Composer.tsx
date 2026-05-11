@@ -24,11 +24,25 @@ export function Composer({
   const [busy, setBusy] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [recordingVideo, setRecordingVideo] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const recRef = useRef<MediaRecorder | null>(null);
   const recStartRef = useRef<number>(0);
   const recChunksRef = useRef<BlobPart[]>([]);
   const recVideoRef = useRef<HTMLVideoElement | null>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+
+  // Tick recording timer at 4 Hz while recording is active.
+  useEffect(() => {
+    if (!recordingAudio && !recordingVideo) {
+      setElapsed(0);
+      return;
+    }
+    const id = window.setInterval(
+      () => setElapsed(Date.now() - recStartRef.current),
+      250,
+    );
+    return () => window.clearInterval(id);
+  }, [recordingAudio, recordingVideo]);
 
   // The <video> preview element only mounts once recordingVideo flips
   // to true, so we cannot bind srcObject in startVideo directly. Bind
@@ -154,38 +168,50 @@ export function Composer({
   return (
     <div className="sticky bottom-0 z-20 border-t border-white/5 bg-ink-950/85 px-3 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur sm:px-4 sm:pt-3">
       {replyTo && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1 text-xs">
-          <span className="text-ink-200/70">↩ ответ на:</span>
-          <span className="line-clamp-1 flex-1">{replyTo.body || replyTo.kind}</span>
-          <button onClick={onClearReply} className="text-ink-200/60">✕</button>
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-xs">
+          <span className="h-3 w-[2px] rounded-full bg-ember-400" />
+          <span className="text-ink-200/60">Ответ:</span>
+          <span className="line-clamp-1 flex-1 text-ink-100/90">
+            {replyTo.body || replyTo.kind}
+          </span>
+          <button
+            onClick={onClearReply}
+            className="text-ink-200/60 transition hover:text-ink-50"
+            aria-label="Отменить ответ"
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {recordingVideo && (
-        <div className="mb-2 flex items-center gap-3">
+        <div className="mb-3 flex justify-center">
           <div className="relative">
             <video
               ref={recVideoRef}
               muted
               playsInline
-              className="h-40 w-40 rounded-2xl bg-black object-cover shadow-card sm:h-48 sm:w-48"
+              className="h-44 w-44 rounded-full bg-black object-cover shadow-card ring-2 ring-rose-500/60 sm:h-52 sm:w-52"
             />
-            <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-rose-500/90 px-2 py-0.5 text-[10px] font-medium text-white">
+            <span className="absolute left-1/2 top-2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-rose-500/95 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              REC
+              Rec
             </span>
-          </div>
-          <div className="text-xs text-ink-200/70">
-            Видеосообщение записывается… <br />
-            нажми <span className="text-ink-50">📹</span> ещё раз, чтобы остановить
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink-950/70 px-2 py-0.5 text-[10px] tabular-nums text-white backdrop-blur">
+              {fmtElapsed(elapsed)}
+            </span>
           </div>
         </div>
       )}
 
       {recordingAudio && (
-        <div className="mb-2 flex items-center gap-2 rounded-2xl bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-rose-400" />
-          Идёт запись голосового — нажми 🎙 ещё раз, чтобы отправить
+        <div className="mb-2 flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-400" />
+          </span>
+          <span className="flex-1">Запись голосового</span>
+          <span className="tabular-nums text-rose-100/80">{fmtElapsed(elapsed)}</span>
         </div>
       )}
 
@@ -197,8 +223,11 @@ export function Composer({
       )}
 
       <div className="flex items-end gap-2">
-        <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl bg-white/5 text-xl">
-          📎
+        <label
+          className="flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-2xl bg-white/5 text-ink-100 transition hover:bg-white/10 active:scale-95"
+          aria-label="Прикрепить файл"
+        >
+          <IconPaperclip />
           <input
             type="file"
             className="hidden"
@@ -235,9 +264,10 @@ export function Composer({
             type="button"
             onClick={() => void sendText()}
             disabled={busy}
-            className="btn-primary h-11 px-4"
+            aria-label="Отправить"
+            className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-ember-500 text-ink-950 shadow-card transition hover:brightness-110 active:scale-95 disabled:opacity-50"
           >
-            ➤
+            <IconSend />
           </button>
         ) : (
           <>
@@ -245,23 +275,77 @@ export function Composer({
               type="button"
               onClick={() => (recordingAudio ? stopAudio() : startAudio())}
               disabled={busy || recordingVideo}
-              className={`h-11 w-11 rounded-xl text-xl ${recordingAudio ? "bg-rose-500/80" : "bg-white/5"}`}
-              aria-label="Голосовое"
+              aria-label={recordingAudio ? "Остановить запись" : "Голосовое сообщение"}
+              className={`flex h-11 w-11 flex-none items-center justify-center rounded-2xl transition active:scale-95 ${
+                recordingAudio
+                  ? "bg-rose-500 text-white shadow-card"
+                  : "bg-white/5 text-ink-100 hover:bg-white/10"
+              }`}
             >
-              🎙
+              {recordingAudio ? <IconStop /> : <IconMic />}
             </button>
             <button
               type="button"
               onClick={() => (recordingVideo ? stopVideo() : startVideo())}
               disabled={busy || recordingAudio}
-              className={`h-11 w-11 rounded-xl text-xl ${recordingVideo ? "bg-rose-500/80" : "bg-white/5"}`}
-              aria-label="Видео"
+              aria-label={recordingVideo ? "Остановить запись" : "Видеосообщение"}
+              className={`flex h-11 w-11 flex-none items-center justify-center rounded-2xl transition active:scale-95 ${
+                recordingVideo
+                  ? "bg-rose-500 text-white shadow-card"
+                  : "bg-white/5 text-ink-100 hover:bg-white/10"
+              }`}
             >
-              📹
+              {recordingVideo ? <IconStop /> : <IconVideo />}
             </button>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function fmtElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+function IconPaperclip() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15.5 8.5-6.2 6.2a3 3 0 0 1-4.3-4.2l7.6-7.6a2 2 0 0 1 2.8 2.8L7.8 13.4a1 1 0 0 1-1.4-1.4l6.4-6.4" />
+    </svg>
+  );
+}
+function IconSend() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
+      <path d="M2.5 9.2 17.3 3a.7.7 0 0 1 .9.9l-6.2 14.8a.7.7 0 0 1-1.3 0l-2.4-5.9-5.9-2.4a.7.7 0 0 1 0-1.3z" />
+    </svg>
+  );
+}
+function IconMic() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" />
+      <path d="M5 9.5a5 5 0 0 0 10 0" />
+      <path d="M10 14.5v3" />
+    </svg>
+  );
+}
+function IconVideo() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2.5" y="5" width="11" height="10" rx="2.5" />
+      <path d="m13.5 9.5 4-2.5v6l-4-2.5z" />
+    </svg>
+  );
+}
+function IconStop() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+      <rect x="5" y="5" width="10" height="10" rx="1.5" />
+    </svg>
   );
 }

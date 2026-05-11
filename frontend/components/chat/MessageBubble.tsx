@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import type { ChatMessage } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
+import { VideoNote } from "./VideoNote";
+import { VoicePlayer } from "./VoicePlayer";
 
 const REACTIONS = ["❤️", "😂", "🔥", "😍", "😮", "😢"];
 
@@ -35,51 +37,58 @@ export function MessageBubble({
     );
   }
 
+  // Round video notes render as a chrome-less circle, no bubble bg.
+  const isVideoNote = msg.kind === "video" && !!msg.attachment;
+
   return (
     <div
       className={`group relative flex max-w-[85%] flex-col gap-1 ${
         isMine ? "self-end items-end" : "self-start items-start"
       }`}
     >
-      <div
-        className={`relative rounded-2xl px-3 py-2 text-[15px] shadow-sm ${
-          isMine
-            ? "bg-ember-500/85 text-ink-950"
-            : "bg-white/10 text-ink-50 backdrop-blur"
-        }`}
-      >
-        {msg.kind === "text" ? (
-          <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-        ) : msg.kind === "photo" && msg.attachment ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+      {isVideoNote && msg.attachment ? (
+        <div className="relative">
+          <VideoNote
             src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            alt=""
-            className="max-h-80 rounded-xl"
           />
-        ) : msg.kind === "video" && msg.attachment ? (
-          <video
-            src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            controls
-            className="max-h-80 rounded-xl"
-          />
-        ) : msg.kind === "voice" && msg.attachment ? (
-          <audio
-            src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            controls
-            className="max-w-full"
-          />
-        ) : msg.kind === "file" && msg.attachment ? (
-          <a
-            href={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            📎 {msg.attachment.filename}
-          </a>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <div
+          className={`relative rounded-2xl text-[15px] shadow-sm ${
+            msg.kind === "photo" ? "" : "px-3 py-2"
+          } ${
+            isMine
+              ? "bg-ember-500/85 text-ink-950"
+              : "bg-white/10 text-ink-50 backdrop-blur"
+          } ${msg.kind === "voice" ? "px-3 py-2 sm:px-4" : ""}`}
+        >
+          {msg.kind === "text" ? (
+            <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+          ) : msg.kind === "photo" && msg.attachment ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+              alt=""
+              className="max-h-80 rounded-2xl"
+            />
+          ) : msg.kind === "voice" && msg.attachment ? (
+            <VoicePlayer
+              src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+              durationMs={msg.attachment.duration_ms}
+              isMine={isMine}
+            />
+          ) : msg.kind === "file" && msg.attachment ? (
+            <a
+              href={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              📎 {msg.attachment.filename}
+            </a>
+          ) : null}
+        </div>
+      )}
 
       {msg.reactions.length > 0 && (
         <div className="flex gap-1">
