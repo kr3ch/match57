@@ -24,13 +24,18 @@ const nextConfig = {
       }
     : {
         async rewrites() {
-          const api = process.env.NEXT_PUBLIC_API_URL;
-          if (!api) return [];
+          // In dev, proxy /api/* to the local FastAPI backend so the
+          // frontend can call same-origin URLs (no CORS dance) and we
+          // can also reuse the WS handshake. Accept both
+          // ``NEXT_PUBLIC_API_URL`` (legacy) and ``NEXT_PUBLIC_API_BASE``
+          // (current); default to http://localhost:8000 so ``npm run
+          // dev`` works out of the box.
+          const api =
+            process.env.NEXT_PUBLIC_API_URL ||
+            process.env.NEXT_PUBLIC_API_BASE ||
+            "http://localhost:8000";
           return [
-            {
-              source: "/api/:path*",
-              destination: `${api}/api/:path*`,
-            },
+            { source: "/api/:path*", destination: `${api}/api/:path*` },
           ];
         },
       }),
