@@ -42,6 +42,15 @@ async def list_users(
     }
 
 
+@router.get("/users/{user_id}")
+async def get_user(user_id: int, _: CurrentAdminDep, db: SessionDep) -> dict:
+    stmt = select(User).where(User.id == user_id).options(selectinload(User.photos))
+    user = await db.scalar(stmt)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    return {"user": await serialize_user(db, user, include_phone=True)}
+
+
 @router.get("/top/received")
 async def top_received(_: CurrentAdminDep, db: SessionDep) -> dict:
     return {"items": await svc.top_received(db)}
@@ -112,7 +121,7 @@ async def list_reports(
                 "target_user_id": r.target_user_id,
                 "reason": r.reason,
                 "status": r.status,
-                "at": r.created_at.isoformat(),
+                "at": r.created_at.isoformat() + "Z",
             }
             for r in rows
         ]
@@ -206,7 +215,7 @@ async def list_conversations(
                 "id": c.id,
                 "user_a_id": c.user_a_id,
                 "user_b_id": c.user_b_id,
-                "last_message_at": c.last_message_at.isoformat() if c.last_message_at else None,
+                "last_message_at": c.last_message_at.isoformat() + "Z" if c.last_message_at else None,
             }
         )
     return {"items": items}
@@ -223,7 +232,7 @@ async def recent_likes(_: CurrentAdminDep, db: SessionDep) -> dict:
                 "from": r.from_user_id,
                 "to": r.to_user_id,
                 "kind": r.kind,
-                "at": r.created_at.isoformat(),
+                "at": r.created_at.isoformat() + "Z",
             }
             for r in rows
         ]
@@ -243,7 +252,7 @@ async def recent_matches(_: CurrentAdminDep, db: SessionDep) -> dict:
                 "id": r.id,
                 "user_a": r.user_a_id,
                 "user_b": r.user_b_id,
-                "at": r.created_at.isoformat(),
+                "at": r.created_at.isoformat() + "Z",
             }
             for r in rows
         ]

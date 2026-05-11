@@ -8,7 +8,6 @@ import smtplib
 from email.message import EmailMessage
 
 from app.config import (
-    PUBLIC_BASE_URL,
     SMTP_FROM,
     SMTP_HOST,
     SMTP_PASS,
@@ -18,10 +17,6 @@ from app.config import (
 )
 
 log = logging.getLogger("email")
-
-
-def verify_link(token: str) -> str:
-    return f"{PUBLIC_BASE_URL.rstrip('/')}/verify-email?token={token}"
 
 
 def _send_via_smtp(to: str, subject: str, body: str) -> None:
@@ -44,26 +39,25 @@ def _send_via_smtp(to: str, subject: str, body: str) -> None:
             s.send_message(msg)
 
 
-async def send_verify_email(to: str, token: str) -> None:
-    link = verify_link(token)
+async def send_verify_email(to: str, code: str) -> None:
     body = (
         "Привет!\n\n"
-        "Подтверди email для MATCH 57: " + link + "\n\n"
+        f"Твой код подтверждения для MATCH 57: {code}\n\n"
+        "Введи его на сайте, чтобы подтвердить email.\n"
         "Если ты не регистрировался — просто проигнорируй это письмо.\n"
     )
     if not SMTP_HOST:
-        log.warning("EMAIL VERIFY (dev) → %s : %s", to, link)
-        print(f"[email] verify link for {to}: {link}", flush=True)
+        log.warning("EMAIL VERIFY (dev) → %s : code=%s", to, code)
+        print(f"[email] verify code for {to}: {code}", flush=True)
         return
     try:
         await asyncio.get_event_loop().run_in_executor(
-            None, _send_via_smtp, to, "MATCH 57 — подтверждение почты", body
+            None, _send_via_smtp, to, f"MATCH 57 — код подтверждения: {code}", body
         )
         log.info("verify email sent to %s", to)
     except Exception as exc:
         log.exception("smtp_failed: %s", exc)
-        # Always log link as a fallback so users aren't locked out.
-        print(f"[email] FALLBACK verify link for {to}: {link}", flush=True)
+        print(f"[email] FALLBACK verify code for {to}: {code}", flush=True)
 
 
-__all__ = ["send_verify_email", "verify_link"]
+__all__ = ["send_verify_email"]

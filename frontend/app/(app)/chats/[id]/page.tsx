@@ -9,6 +9,7 @@ import type { ChatMessage, ConversationListItem } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
 import { presenceLabel, useTicker } from "@/lib/presence";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { ForwardModal } from "@/components/chat/ForwardModal";
 import { Composer } from "@/components/chat/Composer";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
@@ -30,8 +31,11 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState<ChatMessage | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [activeActionMsgId, setActiveActionMsgId] = useState<number | null>(null);
+  const [forwardMsgId, setForwardMsgId] = useState<number | null>(null);
   const typingClearRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
 
   // Mark-read coordination.
   const markReadTimerRef = useRef<number | null>(null);
@@ -80,9 +84,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     // reconnectNonce intentionally in deps: refetch on WS reconnect.
   }, [conversationId, router, push, reconnectNonce]);
 
-  // Scroll to bottom on new messages.
+  // Scroll to bottom on new messages. Instant on first load, smooth after.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const behavior = initialScrollDone.current ? "smooth" : "instant";
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    if (messages.length > 0) initialScrollDone.current = true;
   }, [messages.length]);
 
   // Mark unread messages read — coalesced so we don't trip the rate limiter.
@@ -220,12 +228,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <main className="flex h-[calc(100dvh-1.5rem)] flex-col">
+    <main className="flex h-[calc(100dvh-9rem)] sm:h-[calc(100dvh-10rem)] flex-col">
       <header className="sticky top-0 z-10 -mx-4 mb-2 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←
         </Link>
-        <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
+        <Link href={`/user/${conv.other.user_id}`} className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
           {conv.other.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -239,8 +247,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           {otherOnline && (
             <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-ink-900" />
           )}
-        </div>
-        <div className="min-w-0 flex-1">
+        </Link>
+        <Link href={`/user/${conv.other.user_id}`} className="min-w-0 flex-1">
           <div className="display text-lg leading-tight">
             {conv.other.name}
             {conv.other.age ? `, ${conv.other.age}` : ""}
@@ -252,7 +260,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               lastSeenAt: conv.other.last_seen_at,
             })}
           </div>
-        </div>
+        </Link>
       </header>
 
       <div
@@ -264,18 +272,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             key={m.id}
             msg={m}
             isMine={m.from_user_id === me?.user_id}
-            onReply={() => setReply(m)}
+            onReply={() => { setReply(m); setActiveActionMsgId(null); }}
             onReact={(emoji) => {
               api.reactMessage(m.id, emoji).catch((e) => {
                 if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
               });
             }}
             onDelete={() => {
+              setActiveActionMsgId(null);
               api.deleteMessage(m.id).catch((e) => {
                 if (e instanceof APIError) push({ title: "Ошибка", body: e.detail });
               });
             }}
+            onForward={() => { setForwardMsgId(m.id); setActiveActionMsgId(null); }}
             showRead
+            actionsOpen={activeActionMsgId === m.id}
+            onToggleActions={() => setActiveActionMsgId((prev) => (prev === m.id ? null : m.id))}
           />
         ))}
         {messages.length === 0 && (
@@ -295,6 +307,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         }}
         onClearReply={() => setReply(null)}
       />
+
+      {forwardMsgId !== null && (
+        <ForwardModal
+          messageId={forwardMsgId}
+          currentConversationId={conversationId}
+          onClose={() => setForwardMsgId(null)}
+        />
+      )}
     </main>
   );
 }
