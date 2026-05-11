@@ -23,7 +23,7 @@ async def test_register_duplicate(client: AsyncClient):
     resp = await client.post(
         "/api/auth/register",
         json={
-            "email": "test@example.com",
+            "username": "test",
             "password": "Test1234!",
             "name": "Another",
             "age": 18,
@@ -39,7 +39,7 @@ async def test_login_ok(client: AsyncClient):
     await register_user(client)
     resp = await client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "Test1234!"},
+        json={"username": "test", "password": "Test1234!"},
     )
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
@@ -50,7 +50,7 @@ async def test_login_bad_password(client: AsyncClient):
     await register_user(client)
     resp = await client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "wrong"},
+        json={"username": "test", "password": "wrong"},
     )
     assert resp.status_code == 401
 

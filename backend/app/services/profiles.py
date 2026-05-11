@@ -48,8 +48,6 @@ async def serialize_user(
     }
     if include_phone:
         out["phone"] = user.phone
-        out["email"] = user.email
-        out["email_verified"] = user.email_verified
     return out
 
 
