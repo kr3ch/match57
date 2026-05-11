@@ -122,6 +122,53 @@ async def react(msg_id: int, payload: ReactionIn, user: CurrentUserDep, db: Sess
     return {"ok": True, "removed": removed}
 
 
+class ForwardIn(BaseModel):
+    conversation_id: int
+
+
+@router.post("/{msg_id}/forward")
+async def forward_message(
+    msg_id: int, payload: ForwardIn, user: CurrentUserDep, db: SessionDep
+) -> dict:
+    msg = await db.get(Message, msg_id)
+    if msg is None or msg.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="message_not_found")
+    orig_conv = await conversation_for_user(db, msg.conversation_id, user.id)
+    if orig_conv is None:
+        raise HTTPException(status_code=404, detail="conversation_not_found")
+    target_conv = await conversation_for_user(db, payload.conversation_id, user.id)
+    if target_conv is None:
+        raise HTTPException(status_code=404, detail="target_conversation_not_found")
+    if target_conv.id == orig_conv.id:
+        raise HTTPException(status_code=400, detail="same_conversation")
+
+    attachment = None
+    if msg.kind != "text" and msg.attachment_filename:
+        attachment = {
+            "filename": msg.attachment_filename,
+            "mime": msg.attachment_mime,
+            "duration_ms": msg.attachment_duration_ms,
+            "width": msg.attachment_width,
+            "height": msg.attachment_height,
+        }
+    body = msg.body
+    if msg.kind == "text" and body:
+        body = f"↪ {body}"
+    new_msg = await create_message(
+        db,
+        conversation=target_conv,
+        from_user_id=user.id,
+        body=body,
+        kind=msg.kind,
+        attachment=attachment,
+    )
+    serial = await serialize_message(db, new_msg, current_user_id=user.id)
+    other_id = conversation_other_user_id(target_conv, user.id)
+    await manager.send_to_user(other_id, message_event(serial))
+    await manager.send_to_user(user.id, message_event(serial))
+    return {"message": serial}
+
+
 @router.delete("/{msg_id}")
 async def delete_message(msg_id: int, user: CurrentUserDep, db: SessionDep) -> dict:
     msg = await db.get(Message, msg_id)

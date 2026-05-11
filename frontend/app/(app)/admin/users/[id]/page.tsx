@@ -18,13 +18,9 @@ export default function AdminUserDetailPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // We don't have a single-user admin endpoint — fall back to listing search.
     api
-      .adminUsers(String(id))
-      .then(({ items }) => {
-        const found = items.find((u) => u.user_id === id) ?? items[0] ?? null;
-        setProfile(found);
-      })
+      .adminUser(id)
+      .then(({ user }) => setProfile(user))
       .catch((e) => {
         if (e instanceof APIError) push({ title: "Не найдено", body: e.detail });
       });

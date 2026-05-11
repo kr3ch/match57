@@ -13,10 +13,12 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from sqlalchemy import update  # noqa: E402
 
-from app.config import CORS_ORIGIN_REGEX, CORS_ORIGINS  # noqa: E402
-from app.db import engine  # noqa: E402
+from app.config import ADMIN_EMAILS, CORS_ORIGIN_REGEX, CORS_ORIGINS  # noqa: E402
+from app.db import SessionLocal, engine  # noqa: E402
 from app.db.base import Base  # noqa: E402
+from app.db.models import User  # noqa: E402
 from app.middleware import RateLimitMiddleware  # noqa: E402
 from app.realtime.ws import router as ws_router  # noqa: E402
 from app.routers.admin import router as admin_router  # noqa: E402
@@ -31,6 +33,39 @@ from app.routers.referrals import router as referrals_router  # noqa: E402
 from app.routers.reports import router as reports_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
+async def _sync_admin_emails() -> None:
+    """Promote / demote users so that ``is_admin`` matches *ADMIN_EMAILS*.
+
+    Runs once at startup so that existing accounts are kept in sync with the
+    env-var list without manual SQL or one-off scripts.
+    """
+    if not ADMIN_EMAILS:
+        return
+
+    async with SessionLocal() as session:
+        # Promote users whose email is in ADMIN_EMAILS but is_admin is False.
+        result = await session.execute(
+            update(User)
+            .where(User.email.in_(ADMIN_EMAILS), User.is_admin.is_(False))
+            .values(is_admin=True)
+        )
+        promoted = result.rowcount  # type: ignore[union-attr]
+
+        # Demote users who are admins but no longer in ADMIN_EMAILS.
+        result = await session.execute(
+            update(User)
+            .where(User.is_admin.is_(True), User.email.notin_(ADMIN_EMAILS))
+            .values(is_admin=False)
+        )
+        demoted = result.rowcount  # type: ignore[union-attr]
+
+        await session.commit()
+
+    if promoted or demoted:
+        logger.info("Admin sync: promoted=%d, demoted=%d", promoted, demoted)
 
 
 @asynccontextmanager
@@ -42,6 +77,10 @@ async def lifespan(app: FastAPI):
         from app.db import models  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
+
+    # Sync admin status for existing users listed in ADMIN_EMAILS.
+    await _sync_admin_emails()
+
     yield
 
 

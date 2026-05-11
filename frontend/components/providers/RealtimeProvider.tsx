@@ -195,14 +195,26 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       const sock = wsRef.current;
       if (!sock || sock.readyState !== WebSocket.OPEN) connect();
     };
+    // Explicitly close the WebSocket when the tab/browser is being closed so
+    // the server receives a clean disconnect and broadcasts offline status
+    // immediately instead of waiting for the TCP timeout.
+    const onBeforeUnload = () => {
+      const sock = wsRef.current;
+      if (sock && sock.readyState === WebSocket.OPEN) {
+        sock.close();
+      }
+    };
+
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     connect();
     return () => {
       closedByEffect = true;
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("beforeunload", onBeforeUnload);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (pingTimerRef.current) clearInterval(pingTimerRef.current);
       const ws = wsRef.current;

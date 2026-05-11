@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
 import { useAuth } from "@/components/providers/AuthProvider";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -9,6 +12,17 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const { me, loading } = useAuth();
+  const pathname = usePathname() || "";
+  const router = useRouter();
+
+  // Require at least one photo before accessing the app.
+  const onEditPage = pathname.startsWith("/profile/edit");
+  useEffect(() => {
+    if (loading || !me) return;
+    if (me.photos.length === 0 && !onEditPage) {
+      router.replace("/profile/edit?welcome=1");
+    }
+  }, [loading, me, onEditPage, router]);
 
   if (loading || !me) {
     return (

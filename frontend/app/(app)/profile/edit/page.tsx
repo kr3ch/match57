@@ -88,14 +88,16 @@ function EditProfile() {
         <h1 className="display text-4xl">
           {welcome ? "финальный штрих" : "правки"}
         </h1>
-        <Link href="/profile" className="btn-ghost">
-          ← назад
-        </Link>
+        {profile.photos.length > 0 ? (
+          <Link href="/profile" className="btn-ghost">
+            ← назад
+          </Link>
+        ) : null}
       </header>
 
-      {welcome && (
-        <p className="glass-soft px-5 py-4 text-sm">
-          Добавь хотя бы одно фото — без фото тебя не покажут в стеке.
+      {profile.photos.length === 0 && (
+        <p className="glass-soft px-5 py-4 text-sm text-amber-200">
+          Загрузи хотя бы одно фото — это обязательно для использования приложения.
         </p>
       )}
 

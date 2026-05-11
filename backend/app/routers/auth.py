@@ -8,9 +8,8 @@ from __future__ import annotations
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +19,7 @@ from app.auth import (
     hash_password,
     issue_session,
     make_email_token,
+    validate_password,
     verify_password,
 )
 from app.config import (
@@ -135,6 +135,10 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
         if existing_uname is not None:
             raise HTTPException(status_code=409, detail="username_taken")
 
+    pwd_err = validate_password(payload.password)
+    if pwd_err:
+        raise HTTPException(status_code=422, detail=pwd_err)
+
     user = User(
         email=email,
         username=payload.username,
@@ -221,18 +225,24 @@ async def resend_verify(user: CurrentUserDep, db: SessionDep) -> dict:
     return {"ok": True}
 
 
+class VerifyCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+
+
 @router.post("/verify-email")
 async def verify_email(
-    token: Annotated[str, Query()],
+    payload: VerifyCodeIn,
+    user: CurrentUserDep,
     db: SessionDep,
 ) -> dict:
-    user = await db.scalar(select(User).where(User.email_verify_token == token))
-    if user is None:
-        raise HTTPException(status_code=400, detail="bad_token")
+    if user.email_verified:
+        return {"ok": True, "already": True}
+    if not user.email_verify_token or user.email_verify_token != payload.code:
+        raise HTTPException(status_code=400, detail="bad_code")
     if user.email_verify_expires_at and user.email_verify_expires_at < datetime.now(
         timezone.utc
     ).replace(tzinfo=None):
-        raise HTTPException(status_code=400, detail="token_expired")
+        raise HTTPException(status_code=400, detail="code_expired")
     user.email_verified = True
     user.email_verify_token = None
     user.email_verify_expires_at = None

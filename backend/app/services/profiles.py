@@ -44,7 +44,7 @@ async def serialize_user(
         "hidden": user.hidden,
         "banned": user.banned,
         "photos": photos,
-        "last_seen_at": user.last_seen_at.isoformat() if user.last_seen_at else None,
+        "last_seen_at": (user.last_seen_at.isoformat() + "Z") if user.last_seen_at else None,
     }
     if include_phone:
         out["phone"] = user.phone
