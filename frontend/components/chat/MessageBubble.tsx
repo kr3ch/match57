@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import type { ChatMessage } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
+import { VideoBubble } from "@/components/chat/VideoBubble";
+import { VoiceBubble } from "@/components/chat/VoiceBubble";
 
 const REACTIONS = ["❤️", "😂", "🔥", "😍", "😮", "😢"];
 
@@ -48,10 +50,14 @@ export function MessageBubble({
       }`}
     >
       <div
-        className={`relative rounded-2xl px-3 py-2 text-[15px] shadow-sm cursor-pointer select-none ${
-          isMine
-            ? "bg-ember-500/85 text-ink-950"
-            : "bg-white/10 text-ink-50 backdrop-blur"
+        className={`relative rounded-2xl text-[15px] shadow-sm cursor-pointer select-none ${
+          msg.kind === "video"
+            ? "bg-transparent p-0"
+            : `px-3 py-2 ${
+                isMine
+                  ? "bg-ember-500/85 text-ink-950"
+                  : "bg-white/10 text-ink-50 backdrop-blur"
+              }`
         }`}
         onClick={onToggleActions}
       >
@@ -65,16 +71,15 @@ export function MessageBubble({
             className="max-h-80 rounded-xl"
           />
         ) : msg.kind === "video" && msg.attachment ? (
-          <video
+          <VideoBubble
             src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            controls
-            className="max-h-80 rounded-xl"
+            isMine={isMine}
           />
         ) : msg.kind === "voice" && msg.attachment ? (
-          <audio
+          <VoiceBubble
             src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            controls
-            className="max-w-full"
+            isMine={isMine}
+            durationMs={msg.attachment.duration_ms}
           />
         ) : msg.kind === "file" && msg.attachment ? (
           <a
