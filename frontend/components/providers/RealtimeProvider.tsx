@@ -50,6 +50,16 @@ function wsUrl() {
   return `${API_BASE.replace(/^http/, "ws")}/api/ws`;
 }
 
+// Reconnect strategy: start at 1.5s, double on each failure up to 30s. Resets
+// on a successful open. This prevents hammering the backend during a Render
+// free-tier cold start (which can take 30-60s to wake up).
+const RECONNECT_MIN_MS = 1500;
+const RECONNECT_MAX_MS = 30_000;
+// Render's edge idles silent WebSockets after ~60s. The backend has a
+// {"type": "ping"} → {"type": "pong"} echo so the client must drive a
+// heartbeat to keep the socket alive.
+const PING_INTERVAL_MS = 25_000;
+
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const [connected, setConnected] = useState(false);
@@ -57,6 +67,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef<Set<Listener>>(new Set());
   const reconnectTimerRef = useRef<number | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
+  const reconnectDelayRef = useRef<number>(RECONNECT_MIN_MS);
 
   const subscribe = useCallback((l: Listener) => {
     listenersRef.current.add(l);
@@ -79,26 +91,54 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         ws.close();
         wsRef.current = null;
       }
+      if (pingTimerRef.current) {
+        clearInterval(pingTimerRef.current);
+        pingTimerRef.current = null;
+      }
       setConnected(false);
       return;
     }
 
     let closedByEffect = false;
 
+    const clearPing = () => {
+      if (pingTimerRef.current) {
+        clearInterval(pingTimerRef.current);
+        pingTimerRef.current = null;
+      }
+    };
+
     const connect = () => {
       const ws = new WebSocket(wsUrl());
       wsRef.current = ws;
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => {
+        setConnected(true);
+        reconnectDelayRef.current = RECONNECT_MIN_MS;
+        clearPing();
+        pingTimerRef.current = window.setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: "ping" }));
+            } catch {
+              /* socket about to close — the onclose handler will reconnect */
+            }
+          }
+        }, PING_INTERVAL_MS);
+      };
       ws.onclose = () => {
         setConnected(false);
+        clearPing();
         if (!closedByEffect) {
           if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-          reconnectTimerRef.current = window.setTimeout(connect, 1500);
+          const delay = reconnectDelayRef.current;
+          reconnectDelayRef.current = Math.min(delay * 2, RECONNECT_MAX_MS);
+          reconnectTimerRef.current = window.setTimeout(connect, delay);
         }
       };
       ws.onmessage = (evt) => {
         try {
           const data: WSEvent = JSON.parse(evt.data);
+          if (data.type === "pong") return;
           if (data.type === "presence") {
             setOnline((prev) => {
               const next = new Set(prev);
@@ -118,9 +158,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     return () => {
       closedByEffect = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      clearPing();
       const ws = wsRef.current;
       if (ws) ws.close();
       wsRef.current = null;
+      reconnectDelayRef.current = RECONNECT_MIN_MS;
     };
   }, [me]);
 

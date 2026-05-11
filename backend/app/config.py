@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal, cast
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -62,7 +63,12 @@ PROFILE_PHOTO_MAX = 3
 RATE_LIMIT_SECONDS = float(os.environ.get("RATE_LIMIT_SECONDS", "0.7"))
 
 # ─── App-wide ───────────────────────────────────────────────────────────────
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+# Render sets RENDER=true on every managed service. Use that to pick a
+# production-friendly default for FRONTEND_ORIGIN so the app works on Render
+# even if the operator forgot to set the env var explicitly.
+_ON_RENDER = os.environ.get("RENDER", "").lower() in ("true", "1", "yes")
+_DEFAULT_FRONTEND_ORIGIN = "https://match57.vercel.app" if _ON_RENDER else "http://localhost:3000"
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", _DEFAULT_FRONTEND_ORIGIN)
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", FRONTEND_ORIGIN)
 ADMIN_EMAILS = {
     e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
@@ -70,32 +76,54 @@ ADMIN_EMAILS = {
 DEFAULT_SCHOOL = os.environ.get("DEFAULT_SCHOOL", "57")
 
 # ─── CORS / cookies ─────────────────────────────────────────────────────────
-# Comma-separated list of origins allowed by CORS. Defaults to FRONTEND_ORIGIN
-# so a single env var unlocks the standard prod setup. Set CORS_ORIGINS when
-# you need to allow multiple origins (e.g. prod + staging + localhost).
+# Comma-separated list of origins allowed by CORS. The default covers the
+# canonical Vercel deployment + localhost dev so the app works out of the box
+# even if the operator forgets to set CORS_ORIGINS on Render. Set the env var
+# to override (e.g. to add a staging origin).
+_DEFAULT_PROD_ORIGIN = "https://match57.vercel.app"
+_DEFAULT_DEV_ORIGIN = "http://localhost:3000"
 _CORS_ENV = os.environ.get("CORS_ORIGINS", "").strip()
-CORS_ORIGINS: list[str] = (
-    [o.strip() for o in _CORS_ENV.split(",") if o.strip()]
-    if _CORS_ENV
-    else [FRONTEND_ORIGIN]
-)
-# Optional regex to match dynamic origins (e.g. Vercel preview URLs like
-# https://match57-git-feature-team.vercel.app). Leave empty to disable.
-CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
+if _CORS_ENV:
+    CORS_ORIGINS: list[str] = [o.strip() for o in _CORS_ENV.split(",") if o.strip()]
+else:
+    # Always include FRONTEND_ORIGIN + the canonical prod/dev origins so the
+    # standard "Vercel ↔ Render" topology works without extra config.
+    CORS_ORIGINS = list(dict.fromkeys([FRONTEND_ORIGIN, _DEFAULT_PROD_ORIGIN, _DEFAULT_DEV_ORIGIN]))
+# Optional regex to match dynamic origins. Defaults to matching this project's
+# Vercel preview URLs (e.g. https://match57-git-feature-team.vercel.app or
+# https://match57-abc123-team.vercel.app). Set CORS_ORIGIN_REGEX to override
+# (use "-" to disable previews entirely).
+_CORS_REGEX_ENV = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
+if _CORS_REGEX_ENV == "-":
+    CORS_ORIGIN_REGEX = ""
+elif _CORS_REGEX_ENV:
+    CORS_ORIGIN_REGEX = _CORS_REGEX_ENV
+else:
+    CORS_ORIGIN_REGEX = r"^https://match57(-[a-z0-9-]+)?\.vercel\.app$"
 
 # Cookie security. Cross-site auth cookies (frontend on Vercel + backend on
 # Render) require SameSite=None + Secure=True, otherwise the browser silently
 # drops the Set-Cookie header. We derive sane defaults from the frontend scheme
 # and let the deployment override via env vars when needed.
 _cross_site_default = FRONTEND_ORIGIN.startswith("https://") and "localhost" not in FRONTEND_ORIGIN
-COOKIE_SAMESITE = os.environ.get(
+_RAW_SAMESITE = os.environ.get(
     "COOKIE_SAMESITE",
     "none" if _cross_site_default else "lax",
 ).lower()
-COOKIE_SECURE = os.environ.get(
-    "COOKIE_SECURE",
-    "1" if _cross_site_default else "0",
-) == "1"
+# Starlette / FastAPI only accept these three literals; coerce anything else
+# to the safe cross-site default so a typo doesn't crash request handling.
+COOKIE_SAMESITE: Literal["lax", "strict", "none"] = (
+    cast(Literal["lax", "strict", "none"], _RAW_SAMESITE)
+    if _RAW_SAMESITE in ("lax", "strict", "none")
+    else ("none" if _cross_site_default else "lax")
+)
+COOKIE_SECURE = (
+    os.environ.get(
+        "COOKIE_SECURE",
+        "1" if _cross_site_default else "0",
+    )
+    == "1"
+)
 
 # ─── App constants ──────────────────────────────────────────────────────────
 GENDER_CHOICES = ("Парень", "Девушка")

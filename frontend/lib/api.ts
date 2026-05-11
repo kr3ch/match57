@@ -34,14 +34,34 @@ export class APIError extends Error {
   }
 }
 
+// Render's free tier puts the backend to sleep after ~15 min of inactivity.
+// The first request after a cold start can take 30-60s, and the browser
+// sometimes aborts before the server is awake (showing a generic "network
+// error" to the user). We retry once on TypeError (fetch network failure)
+// after a short delay so the user-facing flow is resilient.
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      await new Promise((r) => setTimeout(r, 1200));
+      return await fetch(url, init);
+    }
+    throw err;
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  // Only set Content-Type when we actually send a JSON body. Adding it on
+  // GET/DELETE requests forces an unnecessary CORS preflight and adds latency
+  // on cross-site (Vercel ↔ Render) calls.
+  const hasBody = init.body != null && typeof init.body === "string";
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+  if (hasBody && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  const res = await fetchWithRetry(`${BASE}${path}`, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
     ...init,
+    headers,
   });
   if (!res.ok) {
     let detail = "";
@@ -61,7 +81,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function requestForm<T>(path: string, body: FormData): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithRetry(`${BASE}${path}`, {
     method: "POST",
     credentials: "include",
     body,

@@ -123,12 +123,14 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 cd frontend
 npm install
-echo "NEXT_PUBLIC_API_BASE=http://localhost:8000" > .env.local
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 npm run dev   # → http://localhost:3000
 ```
 
-В dev режиме фронт проксирует `/api/*` и `/api/ws` на `localhost:8000`
-(см. `next.config.mjs`).
+Фронт НИКОГДА не проксирует `/api/*` через Vercel — и REST, и
+WebSocket ходят напрямую на `NEXT_PUBLIC_API_URL` (на Render в проде,
+на `localhost:8000` в деве). Это нужно, чтобы cross-site auth cookie
+(`SameSite=None; Secure`) не терялся на edge.
 
 ### 3. (опц.) Миграция со старого users_db.json
 
