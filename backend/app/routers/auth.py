@@ -81,7 +81,6 @@ class RegisterIn(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     school: str | None = None
     phone: str | None = None
-    ref: int | None = None
 
     @field_validator("gender")
     @classmethod
@@ -138,11 +137,7 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
         description=(payload.description or "").strip() or None,
         school=(payload.school or DEFAULT_SCHOOL).strip(),
         phone=(payload.phone or "").strip() or None,
-        ref_user_id=payload.ref,
-        is_admin=(
-            placeholder_email in ADMIN_EMAILS
-            or payload.username.lower() in ADMIN_USERNAMES
-        ),
+        is_admin=(placeholder_email in ADMIN_EMAILS or payload.username.lower() in ADMIN_USERNAMES),
         email_verified=True,
     )
 

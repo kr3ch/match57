@@ -127,7 +127,13 @@ export type RegisterPayload = {
   description?: string;
   school?: string;
   phone?: string;
-  ref?: number;
+};
+
+export type LeaderboardRow = {
+  user_id: number;
+  name: string;
+  username: string | null;
+  count: number;
 };
 
 export const api = {
@@ -322,15 +328,6 @@ export const api = {
     });
   },
 
-  // ── referrals ────────────────────────────────────────────────────
-  referrals() {
-    return request<{
-      count: number;
-      items: PublicProfile[];
-      ref_link: string;
-    }>("/api/referrals");
-  },
-
   // ── admin ────────────────────────────────────────────────────────
   adminStats() {
     return request<AdminStatsV2>("/api/admin/stats");
@@ -347,19 +344,10 @@ export const api = {
     return request<{ user: Me }>(`/api/admin/users/${userId}`);
   },
   adminTopReceived() {
-    return request<{ items: { user_id: number; count: number }[] }>(
-      "/api/admin/top/received",
-    );
+    return request<{ items: LeaderboardRow[] }>("/api/admin/top/received");
   },
   adminTopMatches() {
-    return request<{ items: { user_id: number; count: number }[] }>(
-      "/api/admin/top/matches",
-    );
-  },
-  adminTopReferrers() {
-    return request<{ items: { user_id: number; count: number }[] }>(
-      "/api/admin/top/referrers",
-    );
+    return request<{ items: LeaderboardRow[] }>("/api/admin/top/matches");
   },
   adminBan(userId: number) {
     return request<{ ok: true }>("/api/admin/ban", {

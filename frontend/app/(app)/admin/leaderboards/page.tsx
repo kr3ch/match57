@@ -6,21 +6,18 @@ import { useState } from "react";
 
 import { api } from "@/lib/api";
 
-type Tab = "received" | "matches" | "referrers";
+type Tab = "received" | "matches";
 
 const LABEL: Record<Tab, string> = {
   received: "Полученные лайки",
   matches: "Мэтчи",
-  referrers: "Рефереры",
 };
 
 export default function AdminLeaderboardsPage() {
   const [tab, setTab] = useState<Tab>("received");
-  const { data, isLoading } = useSWR(["admin/top", tab], () => {
-    if (tab === "received") return api.adminTopReceived();
-    if (tab === "matches") return api.adminTopMatches();
-    return api.adminTopReferrers();
-  });
+  const { data, isLoading } = useSWR(["admin/top", tab], () =>
+    tab === "received" ? api.adminTopReceived() : api.adminTopMatches(),
+  );
 
   return (
     <main className="flex flex-col gap-4">
@@ -53,13 +50,16 @@ export default function AdminLeaderboardsPage() {
         {(data?.items ?? []).map((row, i) => (
           <li key={row.user_id} className="glass flex items-center gap-3 p-4">
             <span className="display text-3xl text-ember-300/70">{i + 1}</span>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <Link
                 href={`/admin/users/${row.user_id}`}
-                className="display text-xl underline-offset-2 hover:underline"
+                className="display block truncate text-xl underline-offset-2 hover:underline"
               >
-                id:{row.user_id}
+                {row.name || `id:${row.user_id}`}
               </Link>
+              <div className="truncate text-xs text-ink-200/60">
+                {row.username ? `@${row.username}` : `id:${row.user_id}`}
+              </div>
             </div>
             <div className="text-right">
               <div className="display text-2xl">{row.count}</div>
