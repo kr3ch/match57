@@ -11,10 +11,11 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        // Editorial display (Google Fonts: Instrument Serif) + clean body
-        // (Manrope) -- intentionally avoiding overused Inter/Roboto/Arial.
-        display: ["var(--font-display)", "ui-serif", "Georgia"],
-        body: ["var(--font-body)", "ui-sans-serif", "system-ui"],
+        // Display + body share the same Apple-style sans stack; the
+        // actual order (SF Pro → self-hosted SF → Inter → system) lives
+        // on the CSS variables in globals.css so we don't duplicate it.
+        display: ["var(--font-display)", "-apple-system", "BlinkMacSystemFont", "ui-sans-serif", "system-ui"],
+        body: ["var(--font-body)", "-apple-system", "BlinkMacSystemFont", "ui-sans-serif", "system-ui"],
         mono: ["var(--font-mono)", "ui-monospace"],
       },
       colors: {
