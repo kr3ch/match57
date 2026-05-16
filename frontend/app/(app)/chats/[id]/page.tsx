@@ -245,12 +245,23 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </Link>
         <Link href={`/user/${conv.other.user_id}`} className="relative h-10 w-10 flex-none overflow-hidden rounded-full bg-ink-700/60">
           {conv.other.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={mediaUrl(conv.other.avatar.user_id, conv.other.avatar.filename)}
-              alt=""
-              className="h-full w-full object-cover"
-            />
+            conv.other.avatar.kind === "video" ? (
+              <video
+                src={mediaUrl(conv.other.avatar.user_id, conv.other.avatar.filename)}
+                className="h-full w-full object-cover"
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaUrl(conv.other.avatar.user_id, conv.other.avatar.filename)}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            )
           ) : (
             <div className="flex h-full w-full items-center justify-center text-ink-200/60">?</div>
           )}
