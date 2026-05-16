@@ -16,8 +16,11 @@ def _iso(dt: datetime | None) -> str | None:
     return s if s.endswith("Z") or "+" in s else s + "Z"
 
 
-def message_event(message: dict[str, Any]) -> dict[str, Any]:
-    return {"type": "message", "message": message}
+def message_event(message: dict[str, Any], sender_name: str | None = None) -> dict[str, Any]:
+    evt: dict[str, Any] = {"type": "message", "message": message}
+    if sender_name:
+        evt["sender_name"] = sender_name
+    return evt
 
 
 def typing_event(conversation_id: int, user_id: int, is_typing: bool) -> dict[str, Any]:
