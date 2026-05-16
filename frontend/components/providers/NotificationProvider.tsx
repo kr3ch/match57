@@ -192,12 +192,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           href: "/likes",
         });
       } else if (evt.type === "message" && evt.message?.from_user_id !== me.user_id) {
+        const senderName = evt.sender_name || "Кто-то";
+        const body =
+          evt.message.kind === "text"
+            ? evt.message.body || ""
+            : evt.message.kind === "voice"
+              ? "🎙 голосовое"
+              : evt.message.kind === "video"
+                ? "📹 видео"
+                : evt.message.kind === "photo"
+                  ? "📷 фото"
+                  : "📎 файл";
         push({
-          title: "Новое сообщение",
-          body:
-            evt.message.kind === "text"
-              ? evt.message.body || ""
-              : `📎 ${evt.message.kind}`,
+          title: senderName,
+          body,
           href: `/chats/${evt.message.conversation_id}`,
         });
       }

@@ -39,9 +39,14 @@ export default function ProfilePage() {
             ) : null}
           </div>
         </div>
-        <Link href="/profile/edit" className="btn-ghost">
-          редактировать
-        </Link>
+        <div className="flex flex-col gap-2">
+          <Link href="/profile/edit" className="btn-ghost">
+            редактировать
+          </Link>
+          <Link href="/settings" className="btn-ghost text-xs">
+            ⚙️ настройки
+          </Link>
+        </div>
       </header>
 
       <div className="mx-auto w-full max-w-md">
@@ -83,8 +88,8 @@ export default function ProfilePage() {
         </div>
       ) : null}
 
-      <Link href="/settings" className="btn-ghost justify-between">
-        <span>настройки и приглашения</span>
+      <Link href="/settings" className="btn-ghost justify-between text-sm">
+        <span>⚙️ настройки и приглашения</span>
         <span>→</span>
       </Link>
     </main>

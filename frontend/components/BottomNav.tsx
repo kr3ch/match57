@@ -12,11 +12,11 @@ import { useRealtime } from "@/components/providers/RealtimeProvider";
 type Tab = { href: string; label: string; icon: string };
 
 const TABS: Tab[] = [
-  { href: "/swipe", label: "Поиск", icon: "✦" },
-  { href: "/likes", label: "Лайки", icon: "❤" },
-  { href: "/matches", label: "Мэтчи", icon: "✸" },
-  { href: "/chats", label: "Чаты", icon: "✉" },
-  { href: "/profile", label: "Я", icon: "◍" },
+  { href: "/swipe", label: "Поиск", icon: "🔍" },
+  { href: "/likes", label: "Лайки", icon: "❤️" },
+  { href: "/matches", label: "Мэтчи", icon: "🔥" },
+  { href: "/chats", label: "Чаты", icon: "💬" },
+  { href: "/profile", label: "Я", icon: "👤" },
 ];
 
 type Bubble = { id: number; href: string };
@@ -28,7 +28,7 @@ export function BottomNav() {
   const { me } = useAuth();
   const { subscribe } = useRealtime();
   const tabs = me?.is_admin
-    ? [...TABS, { href: "/admin", label: "Админ", icon: "✜" }]
+    ? [...TABS, { href: "/admin", label: "Админ", icon: "⚙️" }]
     : TABS;
 
   // Floating "+1" bubbles, anchored to whichever tab href is most relevant
