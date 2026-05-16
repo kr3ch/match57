@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 export function AdminBadge({
   size = "sm",
   className,
-  label = "ADMIN",
+  label = "АДМИН",
 }: {
   size?: "xs" | "sm" | "md";
   className?: string;
