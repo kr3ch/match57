@@ -52,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setGate("banned");
           return null;
         }
+        if (e.status === 403 && e.detail === "deleted") {
+          setMe(null);
+          setGate("deleted");
+          return null;
+        }
         if (e.status === 401 && e.detail === "user_not_found") {
           setMe(null);
           setGate("deleted");

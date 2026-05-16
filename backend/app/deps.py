@@ -49,6 +49,8 @@ async def current_user(
         raise HTTPException(status_code=401, detail="user_not_found")
     if user.banned:
         raise HTTPException(status_code=403, detail="banned")
+    if user.deleted:
+        raise HTTPException(status_code=403, detail="deleted")
     return user
 
 

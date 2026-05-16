@@ -30,7 +30,9 @@ export type WSEvent =
       user_id: number;
       emoji: string;
       removed: boolean;
-    };
+    }
+  | { type: "banned" }
+  | { type: "deleted" };
 
 type Listener = (e: WSEvent) => void;
 

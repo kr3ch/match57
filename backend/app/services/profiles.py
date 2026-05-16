@@ -43,6 +43,7 @@ async def serialize_user(
         "is_admin": user.is_admin,
         "hidden": user.hidden,
         "banned": user.banned,
+        "deleted": user.deleted,
         "photos": photos,
         "last_seen_at": (user.last_seen_at.isoformat() + "Z") if user.last_seen_at else None,
     }
@@ -68,7 +69,7 @@ async def candidates_for(db: AsyncSession, user: User) -> list[User]:
 
     stmt = (
         select(User)
-        .where(User.banned.is_(False), User.hidden.is_(False), ~User.id.in_(seen_ids))
+        .where(User.banned.is_(False), User.hidden.is_(False), User.deleted.is_(False), ~User.id.in_(seen_ids))
         .options(selectinload(User.photos))
     )
     if user.looking_for == "Девушки":

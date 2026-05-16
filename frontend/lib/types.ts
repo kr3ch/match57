@@ -31,6 +31,7 @@ export type PublicProfile = {
   is_admin: boolean;
   hidden: boolean;
   banned: boolean;
+  deleted: boolean;
   photos: Photo[];
   last_seen_at: string | null;
 };
