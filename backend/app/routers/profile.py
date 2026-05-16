@@ -108,6 +108,9 @@ async def add_photo(
     if info["kind"] not in ("photo", "video"):
         upload_path(user.id, info["filename"]).unlink(missing_ok=True)
         raise HTTPException(status_code=415, detail="profile_supports_photo_or_video_only")
+    if info["kind"] == "video" and info.get("duration_ms") and info["duration_ms"] > 30_000:
+        upload_path(user.id, info["filename"]).unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="video_too_long_30s_max")
     photo = Photo(
         user_id=user.id,
         filename=info["filename"],
