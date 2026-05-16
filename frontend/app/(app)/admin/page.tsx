@@ -12,7 +12,7 @@ const SECTIONS = [
   { href: "/admin/users", label: "Пользователи", desc: "Список + бан / удаление" },
   { href: "/admin/reports", label: "Жалобы", desc: "Закрыть, забанить" },
   { href: "/admin/broadcast", label: "Рассылка", desc: "Системное сообщение всем" },
-  { href: "/admin/leaderboards", label: "Топы", desc: "Лайки / мэтчи / рефералы" },
+  { href: "/admin/leaderboards", label: "Топы", desc: "Лайки / мэтчи" },
 ];
 
 export default function AdminPage() {

@@ -137,11 +137,6 @@ async def top_matches(_: CurrentAdminPinDep, db: SessionDep) -> dict:
     return {"items": await svc.top_matches(db)}
 
 
-@router.get("/top/referrers")
-async def top_referrers(_: CurrentAdminPinDep, db: SessionDep) -> dict:
-    return {"items": await svc.top_referrers(db)}
-
-
 class BanIn(BaseModel):
     user_id: int
 
@@ -164,6 +159,9 @@ async def unban_user(payload: BanIn, _: CurrentAdminPinDep, db: SessionDep) -> d
     if user is None:
         raise HTTPException(status_code=404, detail="user_not_found")
     user.banned = False
+    # Symmetric to /ban: nudge the user's open clients so the ban screen
+    # clears without a manual reload.
+    await manager.send_to_user(payload.user_id, {"type": "unbanned"})
     return {"ok": True}
 
 
@@ -300,7 +298,9 @@ async def list_conversations(
                 "id": c.id,
                 "user_a_id": c.user_a_id,
                 "user_b_id": c.user_b_id,
-                "last_message_at": c.last_message_at.isoformat() + "Z" if c.last_message_at else None,
+                "last_message_at": c.last_message_at.isoformat() + "Z"
+                if c.last_message_at
+                else None,
             }
         )
     return {"items": items}
