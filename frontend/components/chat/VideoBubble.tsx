@@ -115,7 +115,18 @@ export function VideoBubble({ src, isMine }: Props) {
       className={`group relative overflow-hidden rounded-2xl shadow-card ring-1 ring-white/10 ${
         isMine ? "bg-black/30" : "bg-black/40"
       }`}
-      style={{ maxWidth: isFullscreen ? "100vw" : "min(320px, 70vw)" }}
+      style={
+        isFullscreen
+          ? {
+              maxWidth: "100vw",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#000",
+              borderRadius: 0,
+            }
+          : { maxWidth: "min(320px, 70vw)" }
+      }
       onMouseEnter={revealControls}
       onMouseMove={revealControls}
       onTouchStart={(e) => {
@@ -180,6 +191,18 @@ export function VideoBubble({ src, isMine }: Props) {
           setCurrent((e.target as HTMLVideoElement).currentTime || 0);
         }}
         className="block h-auto w-full max-h-80 rounded-2xl object-cover"
+        style={
+          isFullscreen
+            ? {
+                width: "100%",
+                height: "100%",
+                maxWidth: "100vw",
+                maxHeight: "100vh",
+                objectFit: "contain",
+                borderRadius: 0,
+              }
+            : undefined
+        }
       />
 
       {/* Centre play button — only while paused. */}
