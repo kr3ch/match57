@@ -87,7 +87,13 @@ export function SwipeCard({
       transition={{ type: "spring", stiffness: 260, damping: 28 }}
     >
       <div className="glass relative h-full p-3 shadow-card">
-        <PhotoCarousel photos={profile.photos} className="h-full" />
+        {/* Only the top card is above-the-fold; everything stacked
+         * underneath can wait until promotion. */}
+        <PhotoCarousel
+          photos={profile.photos}
+          className="h-full"
+          priority={isTop}
+        />
         {/* Like / Nope stamps */}
         <motion.div
           style={{ opacity: likeOpacity }}
