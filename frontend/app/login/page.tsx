@@ -38,7 +38,7 @@ function LoginContent() {
       if (e instanceof APIError) {
         if (e.status === 401) setError("Неверный логин или пароль");
         else if (e.status === 429) setError("Слишком много попыток. Попробуй через 15 минут");
-        else if (e.status === 403) setError("Аккаунт заблокирован");
+        else if (e.status === 403) setError("Аккаунт заблокирован. Для разблокировки напишите в Telegram: @sneakerdash_manager");
         else setError(e.detail);
       } else {
         setError("Сетевая ошибка");
