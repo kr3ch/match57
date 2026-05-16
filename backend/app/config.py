@@ -7,6 +7,7 @@ secrets are baked into the source.
 from __future__ import annotations
 
 import os
+import secrets as _secrets
 from pathlib import Path
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
@@ -27,7 +28,22 @@ DATABASE_URL_SYNC = DATABASE_URL.replace("sqlite+aiosqlite", "sqlite").replace(
 )
 
 # ─── Auth / sessions ────────────────────────────────────────────────────────
-SESSION_SECRET = os.environ.get("SESSION_SECRET", "dev-secret-change-me")
+_SESSION_SECRET_BASE = os.environ.get("SESSION_SECRET", "dev-secret-change-me")
+
+# Session epoch: a random value stored next to the database file. When the
+# data directory is wiped (e.g. Render ephemeral disk on each deploy), the
+# epoch file is gone too, so a fresh one is generated.  This changes the
+# effective signing key and automatically invalidates all old JWT session
+# tokens, preventing the "user A refreshes and sees user B's account" bug
+# that happens when SQLite user IDs are reassigned after a DB wipe.
+_EPOCH_FILE = DATA_DIR / ".session_epoch"
+if _EPOCH_FILE.exists():
+    _session_epoch = _EPOCH_FILE.read_text().strip()
+else:
+    _session_epoch = _secrets.token_hex(16)
+    _EPOCH_FILE.write_text(_session_epoch)
+
+SESSION_SECRET = f"{_SESSION_SECRET_BASE}:{_session_epoch}"
 SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "match57_session")
 BCRYPT_ROUNDS = int(os.environ.get("BCRYPT_ROUNDS", "12"))
