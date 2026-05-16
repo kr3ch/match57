@@ -23,6 +23,7 @@ from app.auth import (
 )
 from app.config import (
     ADMIN_EMAILS,
+    ADMIN_USERNAMES,
     COOKIE_SAMESITE,
     COOKIE_SECURE,
     DEFAULT_SCHOOL,
@@ -138,7 +139,10 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
         school=(payload.school or DEFAULT_SCHOOL).strip(),
         phone=(payload.phone or "").strip() or None,
         ref_user_id=payload.ref,
-        is_admin=placeholder_email in ADMIN_EMAILS,
+        is_admin=(
+            placeholder_email in ADMIN_EMAILS
+            or payload.username.lower() in ADMIN_USERNAMES
+        ),
         email_verified=True,
     )
 
@@ -168,6 +172,14 @@ async def login(payload: LoginIn, request: Request, response: Response, db: Sess
         raise HTTPException(status_code=403, detail="banned")
 
     user.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Promote an existing account if the configured admin lists changed since
+    # registration (e.g. ADMIN_USERNAMES env added later). Otherwise the user
+    # would have to re-register to gain admin.
+    if not user.is_admin and (
+        (user.email and user.email.lower() in ADMIN_EMAILS)
+        or (user.username and user.username.lower() in ADMIN_USERNAMES)
+    ):
+        user.is_admin = True
     token = issue_session(user.id)
     _set_cookie(response, token)
     return {"ok": True, "user": await serialize_user(db, user, include_phone=True)}

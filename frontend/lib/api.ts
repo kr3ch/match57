@@ -395,4 +395,20 @@ export const api = {
       body: JSON.stringify({ text }),
     });
   },
+
+  // ── admin PIN gate ───────────────────────────────────────────────
+  adminPinStatus() {
+    return request<{ ok: boolean; required: boolean; ttl_minutes: number }>(
+      "/api/admin/pin-status",
+    );
+  },
+  adminVerifyPin(pin: string) {
+    return request<{ ok: true; required: boolean; ttl_minutes?: number }>(
+      "/api/admin/verify-pin",
+      { method: "POST", body: JSON.stringify({ pin }) },
+    );
+  },
+  adminLock() {
+    return request<{ ok: true }>("/api/admin/lock", { method: "POST" });
+  },
 };

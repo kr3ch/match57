@@ -20,6 +20,7 @@ from typing import Any
 import bcrypt
 
 from app.config import (
+    ADMIN_PIN_TTL_MIN,
     BCRYPT_ROUNDS,
     SESSION_COOKIE_NAME,
     SESSION_SECRET,
@@ -27,6 +28,7 @@ from app.config import (
 )
 
 SESSION_COOKIE = SESSION_COOKIE_NAME
+ADMIN_PIN_COOKIE = f"{SESSION_COOKIE_NAME}_admin"
 
 
 # ─── Passwords ──────────────────────────────────────────────────────────────
@@ -106,6 +108,48 @@ def verify_session(token: str | None) -> dict[str, Any] | None:
     return payload
 
 
+# ─── Admin PIN tokens ───────────────────────────────────────────────────────
+# Separate short-lived signed token issued only after a successful POST to
+# ``/api/admin/verify-pin``. Stored in its own cookie so the regular session
+# cookie is never re-issued for this flow.
+
+
+def issue_admin_pin(user_id: int) -> str:
+    now = int(time.time())
+    payload = {
+        "user_id": int(user_id),
+        "iat": now,
+        "exp": now + ADMIN_PIN_TTL_MIN * 60,
+        "scope": "admin_pin",
+    }
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    body = _b64encode(raw)
+    sig = hmac.new(SESSION_SECRET.encode("utf-8"), body.encode("ascii"), hashlib.sha256).digest()
+    return f"{body}.{_b64encode(sig)}"
+
+
+def verify_admin_pin(token: str | None) -> dict[str, Any] | None:
+    if not token or "." not in token:
+        return None
+    body, sig = token.rsplit(".", 1)
+    try:
+        expected = hmac.new(
+            SESSION_SECRET.encode("utf-8"),
+            body.encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(_b64decode(sig), expected):
+            return None
+        payload = json.loads(_b64decode(body))
+    except (ValueError, json.JSONDecodeError):
+        return None
+    if payload.get("scope") != "admin_pin":
+        return None
+    if int(payload.get("exp", 0)) < int(time.time()):
+        return None
+    return payload
+
+
 # ─── Email-verification tokens ──────────────────────────────────────────────
 
 
@@ -115,11 +159,14 @@ def make_email_token() -> str:
 
 
 __all__ = [
+    "ADMIN_PIN_COOKIE",
     "SESSION_COOKIE",
     "hash_password",
+    "issue_admin_pin",
     "issue_session",
     "make_email_token",
     "validate_password",
+    "verify_admin_pin",
     "verify_password",
     "verify_session",
 ]
