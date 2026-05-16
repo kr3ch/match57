@@ -140,8 +140,39 @@ export function VideoBubble({ src, isMine }: Props) {
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onLoadedMetadata={(e) => {
-          setDuration((e.target as HTMLVideoElement).duration || 0);
-          setReady(true);
+          const v = e.target as HTMLVideoElement;
+          // MediaRecorder webm / quicktime files frequently advertise
+          // ``duration: Infinity`` until the file is fully buffered. The
+          // canonical workaround is to seek to a huge timestamp, listen for
+          // ``durationchange``, then reset. We do it once and then mark the
+          // player as ready.
+          if (!Number.isFinite(v.duration) || v.duration === 0) {
+            const onChange = () => {
+              if (Number.isFinite(v.duration) && v.duration > 0) {
+                setDuration(v.duration);
+                v.currentTime = 0;
+                setCurrent(0);
+                setReady(true);
+                v.removeEventListener("durationchange", onChange);
+              }
+            };
+            v.addEventListener("durationchange", onChange);
+            try {
+              v.currentTime = 1e101;
+            } catch {
+              /* some browsers throw; the duration will arrive naturally on
+               * full buffer instead, see onDurationChange below. */
+            }
+          } else {
+            setDuration(v.duration);
+            setReady(true);
+          }
+        }}
+        onDurationChange={(e) => {
+          const v = e.target as HTMLVideoElement;
+          if (Number.isFinite(v.duration) && v.duration > 0) {
+            setDuration(v.duration);
+          }
         }}
         onTimeUpdate={(e) => {
           setCurrent((e.target as HTMLVideoElement).currentTime || 0);
