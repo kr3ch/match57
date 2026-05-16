@@ -329,7 +329,7 @@ function RegisterWizard() {
               </div>
               <p className="mt-2 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-xs text-amber-200">
                 Сразу после регистрации — добавь фото. Без фото профиль
-                <strong className="text-amber-100"> не появится в ленте</strong>
+                <strong className="text-amber-100"> не появится в ленте</strong>{" "}
                 и не сможет лайкать.
               </p>
             </Step>
