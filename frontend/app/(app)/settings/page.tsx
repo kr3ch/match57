@@ -22,21 +22,20 @@ export default function SettingsPage() {
   const { data: ref } = useSWR("me/referral", () => api.referrals());
 
   return (
-    <main className="flex flex-col gap-5">
-      <h1 className="display text-4xl">настройки</h1>
+    <main className="flex flex-col gap-3">
+      <h1 className="display text-3xl">настройки</h1>
 
-      <section className="glass p-5">
-        <h2 className="display text-2xl">уведомления</h2>
+      <section className="glass p-4">
+        <h2 className="display text-xl">уведомления</h2>
         <p className="mt-1 text-sm text-ink-100/80">
-          Мэтчи, лайки и новые сообщения. Тосты и звук работают внутри
-          сайта; системные — даже когда вкладка свёрнута, если разрешишь
-          ниже.
+          Мэтчи, лайки и новые сообщения. Уведомления и звук работают
+          внутри сайта; системные — даже когда вкладка свёрнута.
         </p>
 
         <div className="mt-4 flex flex-col gap-2">
           <ToggleRow
             label="внутри сайта"
-            hint="всплывающие тосты в углу"
+            hint="уведомления сверху экрана"
             checked={enabled}
             onChange={setEnabled}
           />
@@ -65,8 +64,8 @@ export default function SettingsPage() {
         ) : null}
       </section>
 
-      <section className="glass p-5">
-        <h2 className="display text-2xl">пригласи друзей</h2>
+      <section className="glass p-4">
+        <h2 className="display text-xl">пригласи друзей</h2>
         <p className="mt-1 text-sm text-ink-100/80">
           Поделись ссылкой — пусть твои тоже найдут своих.
         </p>
@@ -80,8 +79,8 @@ export default function SettingsPage() {
         ) : null}
       </section>
 
-      <section className="glass p-5">
-        <h2 className="display text-2xl">видимость</h2>
+      <section className="glass p-4">
+        <h2 className="display text-xl">видимость</h2>
         <p className="mt-1 text-sm text-ink-100/80">
           {me?.hidden
             ? "Сейчас твою анкету не видно. Можно вернуть."
