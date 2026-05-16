@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
 import { formatLastSeen, useTicker } from "@/lib/presence";
+import type { ConversationListItem } from "@/lib/types";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
@@ -29,7 +30,10 @@ export default function ChatsPage() {
     });
   }, [subscribe, mutate]);
 
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).filter(
+    (c): c is ConversationListItem & { other: NonNullable<ConversationListItem["other"]> } =>
+      c.other != null,
+  );
 
   return (
     <main className="flex flex-col gap-4">
