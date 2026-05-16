@@ -50,7 +50,7 @@ export default function ProfilePage() {
       </header>
 
       <div className="mx-auto w-full max-w-md">
-        <PhotoCarousel photos={profile.photos} />
+        <PhotoCarousel photos={profile.photos} priority />
       </div>
 
       {profile.description ? (
