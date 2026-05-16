@@ -183,6 +183,12 @@ async def restore_user(user_id: int, _: CurrentAdminPinDep, db: SessionDep) -> d
         raise HTTPException(status_code=404, detail="user_not_found")
     user.deleted = False
     user.hidden = False
+    # Symmetric to DELETE /users/{id}: nudge open clients so the "Аккаунт
+    # удалён" screen clears without a manual reload. Restored users *can*
+    # hold a websocket again, but their previous socket was closed when
+    # they were deleted, so the event may still arrive via the AuthProvider
+    # polling fallback rather than over WS.
+    await manager.send_to_user(user_id, {"type": "restored"})
     return {"ok": True}
 
 

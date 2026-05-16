@@ -194,11 +194,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       } else if (
         evt.type === "banned" ||
         evt.type === "unbanned" ||
-        evt.type === "deleted"
+        evt.type === "deleted" ||
+        evt.type === "restored"
       ) {
-        // Re-fetch /me so the ban gate clears (or activates) without the
-        // user having to reload the tab. Symmetric handling means an admin
-        // unban is reflected in the UI in real time.
+        // Re-fetch /me so the ban / deletion gate clears (or activates)
+        // without the user having to reload the tab. Symmetric handling
+        // for ban↔unban and delete↔restore.
         void refresh();
         return;
       } else if (evt.type === "message" && evt.message?.from_user_id !== me.user_id) {
