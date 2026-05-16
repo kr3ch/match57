@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { display } from "./fonts";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { CookieBanner } from "@/components/CookieBanner";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
 import { RealtimeProvider } from "@/components/providers/RealtimeProvider";
 import { Toaster } from "@/components/Toaster";
@@ -37,6 +38,7 @@ export default function RootLayout({
             <NotificationProvider>
               {children}
               <Toaster />
+              <CookieBanner />
             </NotificationProvider>
           </RealtimeProvider>
         </AuthProvider>

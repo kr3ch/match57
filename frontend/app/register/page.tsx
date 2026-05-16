@@ -82,7 +82,7 @@ function RegisterWizard() {
     if (step === "gender") return !!gender;
     if (step === "looking_for") return !!lookingFor;
     return true;
-  }, [step, username, password, passwordErrors, name, age, gender, lookingFor]);
+  }, [step, username, passwordErrors, name, age, gender, lookingFor]);
 
   async function submit() {
     if (!gender || !lookingFor) return;
@@ -214,7 +214,11 @@ function RegisterWizard() {
           )}
 
           {step === "age" && (
-            <Step title="Сколько тебе лет?" kicker="14-100">
+            <Step
+              title="Сколько тебе лет?"
+              kicker="от 14 до 100 лет"
+              text="Регистрация только с 14 лет."
+            >
               <div className="flex flex-col gap-3">
                 <input
                   type="number"
@@ -224,6 +228,12 @@ function RegisterWizard() {
                   value={age}
                   onChange={(e) => setAge(Number(e.target.value) || 14)}
                 />
+                {age < 14 && (
+                  <p className="text-xs text-amber-200/80">Минимум 14 лет.</p>
+                )}
+                {age > 100 && (
+                  <p className="text-xs text-amber-200/80">Максимум 100 лет.</p>
+                )}
                 <Nav back={back} next={next} canProceed={canProceed} />
               </div>
             </Step>
@@ -317,8 +327,10 @@ function RegisterWizard() {
                   {submitting ? "Сохраняем…" : "Зарегистрироваться"}
                 </button>
               </div>
-              <p className="mt-2 text-center text-xs text-ink-100/60">
-                Дальше попросим добавить фото в профиле.
+              <p className="mt-2 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-xs text-amber-200">
+                Сразу после регистрации — добавь фото. Без фото профиль
+                <strong className="text-amber-100"> не появится в ленте</strong>
+                и не сможет лайкать.
               </p>
             </Step>
           )}

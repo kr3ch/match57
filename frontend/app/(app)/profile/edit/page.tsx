@@ -109,9 +109,18 @@ function EditProfile() {
       </header>
 
       {profile.photos.length === 0 && (
-        <p className="glass-soft px-5 py-4 text-sm text-amber-200">
-          Загрузи хотя бы одно фото — это обязательно для использования приложения.
-        </p>
+        <div className="glass flex items-start gap-3 border border-amber-300/40 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+          <span aria-hidden="true" className="text-xl leading-none">⚠️</span>
+          <div className="flex flex-col gap-1">
+            <strong className="display text-base text-amber-50">
+              Добавь фото — без него ничего не работает
+            </strong>
+            <span className="text-amber-100/85">
+              Профиль без фото не появится в ленте, нельзя лайкать и матчиться.
+              Подойдёт обычное селфи или короткое видео — до 3 файлов.
+            </span>
+          </div>
+        </div>
       )}
 
       <section className="glass flex flex-col gap-3 p-5">
