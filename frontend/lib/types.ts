@@ -75,6 +75,7 @@ export type ConversationListItem = {
       | null;
     online: boolean;
     last_seen_at: string | null;
+    is_admin?: boolean;
   };
   last_message: {
     id: number;
