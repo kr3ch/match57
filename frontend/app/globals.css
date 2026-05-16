@@ -154,3 +154,51 @@ input[type="range"].voice-range::-moz-range-thumb {
 input[type="range"].voice-range::-moz-range-track {
   background: transparent;
 }
+
+/* ── Minimal scrollbar ─────────────────────────────────────────────
+ * Slim, almost-invisible bars that brighten on hover. Native scroll
+ * behaviour (wheel / touch / trackpad) is preserved — we only restyle
+ * the chrome.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  transition: background-color 200ms ease;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Native media controls ────────────────────────────────────────
+ * The custom VideoBubble / VoiceBubble cover most of the chat UX,
+ * but when a raw <audio>/<video> shows up (preview, profile, etc.)
+ * we still want the dark theme to apply.
+ */
+audio,
+video {
+  color-scheme: dark;
+  accent-color: rgb(255 111 60);
+}
+
+/* Focus ring used everywhere keyboard nav lands. Tailwind already
+ * styles focus-visible on .input/.btn-*, this is the fallback for
+ * everything else (links, raw buttons, etc.). */
+:focus-visible {
+  outline: 2px solid rgba(255, 111, 60, 0.55);
+  outline-offset: 2px;
+  border-radius: 8px;
+}

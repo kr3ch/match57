@@ -96,6 +96,16 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", FRONTEND_ORIGIN)
 ADMIN_EMAILS = {
     e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
 }
+# Login is now by username (the email-auth flow was removed in trunk). Grant
+# admin by username too — ``ADMIN_USERNAME`` (singular) is accepted as an alias.
+_ADMIN_USERS_RAW = os.environ.get("ADMIN_USERNAMES") or os.environ.get("ADMIN_USERNAME", "")
+ADMIN_USERNAMES = {
+    u.strip().lstrip("@").lower() for u in _ADMIN_USERS_RAW.split(",") if u.strip()
+}
+# Optional second-factor PIN gating every /api/admin/* call. Empty disables
+# the gate so local dev still works without setting anything.
+ADMIN_PIN = os.environ.get("ADMIN_PIN", "").strip()
+ADMIN_PIN_TTL_MIN = int(os.environ.get("ADMIN_PIN_TTL_MIN", "60"))
 DEFAULT_SCHOOL = os.environ.get("DEFAULT_SCHOOL", "57")
 
 # ─── CORS / cookies ─────────────────────────────────────────────────────────
