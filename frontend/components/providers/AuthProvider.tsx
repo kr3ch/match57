@@ -76,16 +76,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
-  // While the user sits on the "banned" screen they cannot open a WebSocket
-  // (backend rejects banned sockets), so realtime events can't tell them
-  // they were unbanned. Poll `/me` every 10s as a fallback: as soon as the
-  // admin clears `banned`, the gate flips back to null and they regain
-  // access without a manual reload.
+  // While the user sits on a gate screen ("Вы заблокированы" / "Аккаунт
+  // удалён") the AuthProvider renders the gate UI in place of children,
+  // so the WebSocket provider never even mounts. Realtime ban/unban/
+  // delete/restore events therefore can't reach this tab through WS —
+  // poll `/me` aggressively (every 3s) so that as soon as the admin
+  // flips the user's state, the gate clears within a few seconds. The
+  // request is cheap (single indexed lookup + JWT verify) and only runs
+  // while the tab is parked on a gate screen.
   useEffect(() => {
-    if (gate !== "banned") return;
+    if (!gate) return;
     const id = window.setInterval(() => {
       void refresh();
-    }, 10_000);
+    }, 3_000);
     return () => window.clearInterval(id);
   }, [gate, refresh]);
 

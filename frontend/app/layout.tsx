@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { display } from "./fonts";
+import { inter } from "./fonts";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { CookieBanner } from "@/components/CookieBanner";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${display.variable} dark`}
+      className={`${inter.variable} dark`}
       suppressHydrationWarning
     >
       <body>
