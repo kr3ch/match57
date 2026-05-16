@@ -18,7 +18,7 @@ import { useAuth } from "./AuthProvider";
 export type WSEvent =
   | { type: "ping" }
   | { type: "pong" }
-  | { type: "message"; message: any }
+  | { type: "message"; message: any; sender_name?: string }
   | { type: "typing"; conversation_id: number; user_id: number; is_typing: boolean }
   | { type: "read"; message_id: number; user_id: number; conversation_id: number }
   | { type: "presence"; user_id: number; online: boolean; last_seen_at: string | null }

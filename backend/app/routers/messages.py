@@ -83,8 +83,8 @@ async def send(payload: MessageIn, user: CurrentUserDep, db: SessionDep) -> dict
     )
     serial = await serialize_message(db, msg, current_user_id=user.id)
     other_id = conversation_other_user_id(conv, user.id)
-    await manager.send_to_user(other_id, message_event(serial))
-    await manager.send_to_user(user.id, message_event(serial))
+    await manager.send_to_user(other_id, message_event(serial, sender_name=user.name))
+    await manager.send_to_user(user.id, message_event(serial, sender_name=user.name))
     return {"message": serial}
 
 
@@ -164,8 +164,8 @@ async def forward_message(
     )
     serial = await serialize_message(db, new_msg, current_user_id=user.id)
     other_id = conversation_other_user_id(target_conv, user.id)
-    await manager.send_to_user(other_id, message_event(serial))
-    await manager.send_to_user(user.id, message_event(serial))
+    await manager.send_to_user(other_id, message_event(serial, sender_name=user.name))
+    await manager.send_to_user(user.id, message_event(serial, sender_name=user.name))
     return {"message": serial}
 
 
