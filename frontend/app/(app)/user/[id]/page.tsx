@@ -38,12 +38,18 @@ export default function UserProfilePage() {
     );
   }
 
+  // The page is laid out as a 2-row CSS grid so the photo section gets a
+  // *definite* height (`1fr`) regardless of flex-basis quirks. Total
+  // height ties to the app layout: `(app)/layout.tsx` reserves `pt-4`
+  // (1rem) on top and `pb-32` (8rem) on the bottom for the nav, so the
+  // available content area is `100dvh - 9rem`. We use a slightly larger
+  // 9.5rem cushion to leave a tiny breathing room above the nav.
+  const pageHeight = "calc(100dvh - 9.5rem)";
   return (
-    // The whole page is intentionally height-capped so that on a typical
-    // phone (≈ 100dvh − app top padding − bottom nav) the photo + info
-    // overlay fit in one viewport without scrolling. Long descriptions
-    // are line-clamped; tap the description to expand inline.
-    <main className="flex flex-col gap-3" style={{ minHeight: "calc(100dvh - 10rem)" }}>
+    <main
+      className="grid grid-rows-[auto_1fr] gap-3"
+      style={{ height: pageHeight }}
+    >
       <header className="flex items-center justify-between">
         <button type="button" className="btn-ghost" onClick={() => router.back()}>
           ← назад
@@ -51,18 +57,22 @@ export default function UserProfilePage() {
         {profile.is_admin ? <AdminBadge size="sm" /> : null}
       </header>
 
-      <section className="relative mx-auto w-full max-w-md flex-1 min-h-0 overflow-hidden rounded-3xl bg-ink-900 shadow-card">
+      {/* The photo section is `relative` so the PhotoCarousel
+       * (`absolute inset-0`) and the info overlay can stack on top of
+       * it. It has its own width cap (max-w-md) to keep things sane on
+       * wide screens. */}
+      <section className="relative mx-auto w-full max-w-md overflow-hidden rounded-3xl bg-ink-900 shadow-card">
         {profile.photos.length > 0 ? (
           <PhotoCarousel photos={profile.photos} fill priority />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-ink-200/40">
+          <div className="absolute inset-0 flex items-center justify-center text-ink-200/60">
             нет фото
           </div>
         )}
 
-        {/* Info overlay sits on top of the carousel's own bottom-gradient
-         * (PhotoCarousel already paints a from-black/85 fade). Stacking
-         * order here is: photo → carousel gradient → this overlay. */}
+        {/* Info overlay sits on top of the carousel's own bottom-gradient.
+         * pointer-events-none so swipe taps still reach the carousel
+         * left/right zones underneath. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-5 pt-14 text-white">
           <div
             className="absolute inset-x-0 bottom-0 -z-10 h-full"
