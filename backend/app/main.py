@@ -13,7 +13,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from sqlalchemy import update  # noqa: E402
+from sqlalchemy import text, update  # noqa: E402
 
 from app.config import ADMIN_EMAILS, CORS_ORIGIN_REGEX, CORS_ORIGINS  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
@@ -77,6 +77,17 @@ async def lifespan(app: FastAPI):
         from app.db import models  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
+
+    # Add missing columns to existing tables (lightweight schema migration).
+    async with engine.begin() as conn:
+        for col, default in [("deleted", "0")]:
+            try:
+                await conn.execute(
+                    text(f"ALTER TABLE users ADD COLUMN {col} BOOLEAN NOT NULL DEFAULT {default}")
+                )
+                logger.info("Added column users.%s", col)
+            except Exception:
+                pass  # column already exists
 
     # Sync admin status for existing users listed in ADMIN_EMAILS.
     try:
