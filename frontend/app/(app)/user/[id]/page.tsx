@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { APIError, api } from "@/lib/api";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { PhotoCarousel } from "@/components/PhotoCarousel";
+import { AdminBadge } from "@/components/AdminBadge";
 import type { PublicProfile } from "@/lib/types";
 
 export default function UserProfilePage() {
@@ -48,8 +49,9 @@ export default function UserProfilePage() {
       )}
 
       <div className="glass p-5">
-        <div className="display text-3xl">
-          {profile.name}, {profile.age}
+        <div className="flex items-center gap-2">
+          <span className="display text-3xl">{profile.name}, {profile.age}</span>
+          {profile.is_admin ? <AdminBadge size="sm" /> : null}
         </div>
         <div className="mt-1 text-sm text-ink-200/70">
           {profile.gender} · ищет {profile.looking_for.toLowerCase()}

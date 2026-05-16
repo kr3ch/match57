@@ -1,19 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { VolumeControl } from "./VolumeControl";
 
 /**
  * Chat video bubble with a fully custom overlay — we never render the
- * browser's default controls (which look out of place on iOS / Chrome).
+ * browser's default controls in the inline bubble (which look out of
+ * place on iOS / Chrome).
  *
  * Layout while paused: large play button in the centre + faint duration
  * badge bottom-right.
  *
  * Layout while playing: subtle bottom bar with play/pause, time, slim
- * progress and a fullscreen toggle. The bar fades out after ~2s of
+ * progress and an enlarge toggle. The bar fades out after ~2s of
  * inactivity and re-appears on hover / tap.
+ *
+ * Enlarging the bubble opens a Telegram-style modal preview (dark scrim,
+ * video centred at ~90vw/90vh, custom controls). We never call the
+ * browser's ``requestFullscreen`` API — that was the source of the
+ * «съезжает» layout bug on desktop Chrome.
  */
 type Props = {
   src: string;
@@ -29,7 +36,6 @@ function fmt(secs: number): string {
 
 export function VideoBubble({ src, isMine }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<number | null>(null);
 
   const [playing, setPlaying] = useState(false);
@@ -37,7 +43,7 @@ export function VideoBubble({ src, isMine }: Props) {
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const scheduleHide = useCallback(() => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
@@ -65,14 +71,26 @@ export function VideoBubble({ src, isMine }: Props) {
     };
   }, [playing, scheduleHide]);
 
-  // Track fullscreen toggles so the icon switches state.
+  // While the preview modal is open:
+  //   • lock body scroll so the chat behind doesn't move
+  //   • catch Escape to close (mirrors the close button)
+  //   • pause the inline player so we don't get duplicated audio
   useEffect(() => {
-    const onChange = () => {
-      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    if (!previewOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewOpen(false);
     };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [previewOpen]);
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -92,30 +110,18 @@ export function VideoBubble({ src, isMine }: Props) {
     revealControls();
   };
 
-  const toggleFullscreen = async () => {
-    const el = containerRef.current;
-    if (!el) return;
-    try {
-      if (document.fullscreenElement === el) {
-        await document.exitFullscreen();
-      } else {
-        await el.requestFullscreen();
-      }
-    } catch {
-      /* iOS Safari rejects requestFullscreen on non-video elements; we just
-       * swallow this and fall back to the inline player. */
-    }
-  };
+  const openPreview = () => setPreviewOpen(true);
+  const closePreview = () => setPreviewOpen(false);
 
   const progress = duration > 0 ? (current / duration) * 1000 : 0;
 
   return (
+    <>
     <div
-      ref={containerRef}
       className={`group relative overflow-hidden rounded-2xl shadow-card ring-1 ring-white/10 ${
         isMine ? "bg-black/30" : "bg-black/40"
       }`}
-      style={{ maxWidth: isFullscreen ? "100vw" : "min(320px, 70vw)" }}
+      style={{ maxWidth: "min(320px, 70vw)" }}
       onMouseEnter={revealControls}
       onMouseMove={revealControls}
       onTouchStart={(e) => {
@@ -264,30 +270,194 @@ export function VideoBubble({ src, isMine }: Props) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                void toggleFullscreen();
+                openPreview();
               }}
-              aria-label={isFullscreen ? "Свернуть" : "Во весь экран"}
+              aria-label="Открыть в полноразмерном просмотре"
               className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 active:scale-95"
             >
-            {isFullscreen ? (
-              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
-                <path
-                  d="M9 9H4v2h7V4H9v5zm6 6h5v-2h-7v7h2v-5zM9 15v5h2v-7H4v2h5zm6-6V4h-2v7h7V9h-5z"
-                  fill="currentColor"
-                />
-              </svg>
-            ) : (
               <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                 <path
                   d="M4 8V4h4v2H6v2H4zm12-4h4v4h-2V6h-2V4zM4 16h2v2h2v2H4v-4zm14 0h2v4h-4v-2h2v-2z"
                   fill="currentColor"
                 />
               </svg>
-              )}
             </button>
           </div>
         </div>
       </div>
     </div>
+    {previewOpen && <MediaPreview src={src} onClose={closePreview} />}
+    </>
+  );
+}
+
+/**
+ * Telegram-style media preview. A dark scrim portal'd onto ``<body>``
+ * with the video centred at up to ~90vw × 90vh. Fully custom controls —
+ * no native browser chrome.
+ */
+function MediaPreview({ src, onClose }: { src: string; onClose: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const hideRef = useRef<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [dur, setDur] = useState(0);
+  const [cur, setCur] = useState(0);
+  const [show, setShow] = useState(true);
+
+  const schedHide = useCallback(() => {
+    if (hideRef.current) window.clearTimeout(hideRef.current);
+    hideRef.current = window.setTimeout(() => setShow(false), 2500);
+  }, []);
+
+  const reveal = useCallback(() => {
+    setShow(true);
+    if (playing) schedHide();
+  }, [playing, schedHide]);
+
+  useEffect(() => {
+    if (playing) schedHide();
+    else {
+      setShow(true);
+      if (hideRef.current) window.clearTimeout(hideRef.current);
+    }
+    return () => { if (hideRef.current) window.clearTimeout(hideRef.current); };
+  }, [playing, schedHide]);
+
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.paused) void v.play(); else v.pause();
+  };
+
+  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = ref.current;
+    if (!v) return;
+    v.currentTime = (Number(e.target.value) / 1000) * (dur || 0);
+    reveal();
+  };
+
+  const prog = dur > 0 ? (cur / dur) * 1000 : 0;
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseMove={reveal}
+      onTouchStart={reveal}
+      className="m57-media-preview fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+    >
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Закрыть"
+        className={`absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 active:scale-95 ${
+          show ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {/* Video + custom controls wrapper */}
+      <div
+        className="relative flex max-h-[90vh] max-w-[90vw] flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <video
+          ref={ref}
+          src={src}
+          autoPlay
+          playsInline
+          onClick={toggle}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onLoadedMetadata={(e) => {
+            const v = e.target as HTMLVideoElement;
+            if (!Number.isFinite(v.duration) || v.duration === 0) {
+              const onChange = () => {
+                if (Number.isFinite(v.duration) && v.duration > 0) {
+                  setDur(v.duration);
+                  v.removeEventListener("durationchange", onChange);
+                }
+              };
+              v.addEventListener("durationchange", onChange);
+              try { v.currentTime = 1e101; } catch { /* ok */ }
+            } else {
+              setDur(v.duration);
+            }
+          }}
+          onDurationChange={(e) => {
+            const v = e.target as HTMLVideoElement;
+            if (Number.isFinite(v.duration) && v.duration > 0) setDur(v.duration);
+          }}
+          onTimeUpdate={(e) => setCur((e.target as HTMLVideoElement).currentTime || 0)}
+          className="max-h-[90vh] max-w-[90vw] cursor-pointer rounded-2xl object-contain shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+        />
+
+        {/* Centre play overlay when paused */}
+        {!playing && (
+          <button
+            type="button"
+            onClick={toggle}
+            className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/20"
+          >
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-ember-500/95 text-ink-950 shadow-[0_8px_30px_rgba(244,134,90,0.55)] ring-1 ring-ember-50/30 transition active:scale-95">
+              <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" className="ml-1">
+                <path d="M8 5.5v13l11-6.5-11-6.5z" fill="currentColor" />
+              </svg>
+            </span>
+          </button>
+        )}
+
+        {/* Bottom control bar */}
+        <div
+          className={`absolute inset-x-0 bottom-0 flex flex-col gap-2 rounded-b-2xl bg-gradient-to-t from-black/70 via-black/40 to-transparent px-4 pb-3 pt-8 transition-opacity duration-200 ${
+            show ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            step={1}
+            value={prog}
+            onChange={seek}
+            aria-label="Перемотка"
+            className="voice-range h-1.5 w-full cursor-pointer appearance-none rounded-full"
+            style={{
+              background: `linear-gradient(to right, rgb(255 111 60) 0%, rgb(255 111 60) ${prog / 10}%, rgba(255,255,255,0.25) ${prog / 10}%, rgba(255,255,255,0.25) 100%)`,
+              color: "rgb(255 111 60)",
+            }}
+          />
+          <div className="flex items-center justify-between text-[12px] tabular-nums text-white/90">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={playing ? "Пауза" : "Играть"}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 active:scale-95"
+              >
+                {playing ? (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" className="ml-0.5">
+                    <path d="M8 5.5v13l11-6.5-11-6.5z" fill="currentColor" />
+                  </svg>
+                )}
+              </button>
+              <span>{fmt(cur)} / {fmt(dur)}</span>
+            </div>
+            <VolumeControl mediaRef={ref} variant="video" onInteract={reveal} />
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
