@@ -29,7 +29,6 @@ from app.routers.likes import router as likes_router  # noqa: E402
 from app.routers.media import router as media_router  # noqa: E402
 from app.routers.messages import router as messages_router  # noqa: E402
 from app.routers.profile import router as profile_router  # noqa: E402
-from app.routers.referrals import router as referrals_router  # noqa: E402
 from app.routers.reports import router as reports_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -128,7 +127,6 @@ app.include_router(conversations_router)
 app.include_router(messages_router)
 app.include_router(media_router)
 app.include_router(reports_router)
-app.include_router(referrals_router)
 app.include_router(admin_router)
 app.include_router(ws_router)
 
