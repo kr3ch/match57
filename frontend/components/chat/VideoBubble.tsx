@@ -1,19 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { VolumeControl } from "./VolumeControl";
 
 /**
  * Chat video bubble with a fully custom overlay — we never render the
- * browser's default controls (which look out of place on iOS / Chrome).
+ * browser's default controls in the inline bubble (which look out of
+ * place on iOS / Chrome).
  *
  * Layout while paused: large play button in the centre + faint duration
  * badge bottom-right.
  *
  * Layout while playing: subtle bottom bar with play/pause, time, slim
- * progress and a fullscreen toggle. The bar fades out after ~2s of
+ * progress and an enlarge toggle. The bar fades out after ~2s of
  * inactivity and re-appears on hover / tap.
+ *
+ * Enlarging the bubble opens a Telegram-style modal preview (dark scrim,
+ * video centred at ~90vw/90vh, custom controls). We never call the
+ * browser's ``requestFullscreen`` API — that was the source of the
+ * «съезжает» layout bug on desktop Chrome.
  */
 type Props = {
   src: string;
@@ -29,7 +36,6 @@ function fmt(secs: number): string {
 
 export function VideoBubble({ src, isMine }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<number | null>(null);
 
   const [playing, setPlaying] = useState(false);
@@ -37,7 +43,7 @@ export function VideoBubble({ src, isMine }: Props) {
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const scheduleHide = useCallback(() => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
@@ -65,14 +71,26 @@ export function VideoBubble({ src, isMine }: Props) {
     };
   }, [playing, scheduleHide]);
 
-  // Track fullscreen toggles so the icon switches state.
+  // While the preview modal is open:
+  //   • lock body scroll so the chat behind doesn't move
+  //   • catch Escape to close (mirrors the close button)
+  //   • pause the inline player so we don't get duplicated audio
   useEffect(() => {
-    const onChange = () => {
-      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    if (!previewOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewOpen(false);
     };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [previewOpen]);
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -92,41 +110,18 @@ export function VideoBubble({ src, isMine }: Props) {
     revealControls();
   };
 
-  const toggleFullscreen = async () => {
-    const el = containerRef.current;
-    if (!el) return;
-    try {
-      if (document.fullscreenElement === el) {
-        await document.exitFullscreen();
-      } else {
-        await el.requestFullscreen();
-      }
-    } catch {
-      /* iOS Safari rejects requestFullscreen on non-video elements; we just
-       * swallow this and fall back to the inline player. */
-    }
-  };
+  const openPreview = () => setPreviewOpen(true);
+  const closePreview = () => setPreviewOpen(false);
 
   const progress = duration > 0 ? (current / duration) * 1000 : 0;
 
   return (
+    <>
     <div
-      ref={containerRef}
       className={`group relative overflow-hidden rounded-2xl shadow-card ring-1 ring-white/10 ${
         isMine ? "bg-black/30" : "bg-black/40"
       }`}
-      style={
-        isFullscreen
-          ? {
-              maxWidth: "100vw",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "#000",
-              borderRadius: 0,
-            }
-          : { maxWidth: "min(320px, 70vw)" }
-      }
+      style={{ maxWidth: "min(320px, 70vw)" }}
       onMouseEnter={revealControls}
       onMouseMove={revealControls}
       onTouchStart={(e) => {
@@ -191,18 +186,6 @@ export function VideoBubble({ src, isMine }: Props) {
           setCurrent((e.target as HTMLVideoElement).currentTime || 0);
         }}
         className="block h-auto w-full max-h-80 rounded-2xl object-cover"
-        style={
-          isFullscreen
-            ? {
-                width: "100%",
-                height: "100%",
-                maxWidth: "100vw",
-                maxHeight: "100vh",
-                objectFit: "contain",
-                borderRadius: 0,
-              }
-            : undefined
-        }
       />
 
       {/* Centre play button — only while paused. */}
@@ -287,30 +270,67 @@ export function VideoBubble({ src, isMine }: Props) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                void toggleFullscreen();
+                openPreview();
               }}
-              aria-label={isFullscreen ? "Свернуть" : "Во весь экран"}
+              aria-label="Открыть в полноразмерном просмотре"
               className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 active:scale-95"
             >
-            {isFullscreen ? (
-              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
-                <path
-                  d="M9 9H4v2h7V4H9v5zm6 6h5v-2h-7v7h2v-5zM9 15v5h2v-7H4v2h5zm6-6V4h-2v7h7V9h-5z"
-                  fill="currentColor"
-                />
-              </svg>
-            ) : (
               <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                 <path
                   d="M4 8V4h4v2H6v2H4zm12-4h4v4h-2V6h-2V4zM4 16h2v2h2v2H4v-4zm14 0h2v4h-4v-2h2v-2z"
                   fill="currentColor"
                 />
               </svg>
-              )}
             </button>
           </div>
         </div>
       </div>
     </div>
+    {previewOpen && <MediaPreview src={src} onClose={closePreview} />}
+    </>
+  );
+}
+
+/**
+ * Telegram-style media preview. A dark scrim portal'd onto ``<body>``
+ * with the video centred at up to ~90vw × 90vh. Clicking the scrim,
+ * pressing Escape or clicking the close button dismisses it.
+ */
+function MediaPreview({ src, onClose }: { src: string; onClose: () => void }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="m57-media-preview fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Закрыть"
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 active:scale-95"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path
+            d="M6 6L18 18M6 18L18 6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <video
+        src={src}
+        autoPlay
+        controls
+        playsInline
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+      />
+    </div>,
+    document.body,
   );
 }

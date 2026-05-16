@@ -234,12 +234,17 @@ video {
   border-radius: 8px;
 }
 
-/* ── Native fullscreen background only ─────────────────
- * Just paint the area around the video black. Sizing / centring is
- * applied via inline styles in VideoBubble.tsx when the bubble flips
- * to fullscreen, because Next.js' CSS minifier silently dropped the
- * `!important` rules we previously had on `:fullscreen video`. */
-:fullscreen,
-:-webkit-full-screen {
-  background: #000;
+/* ── Telegram-style media preview fade-in ─────────────────
+ * VideoBubble opens its preview as a portal'd dialog rather than
+ * via `requestFullscreen()` — that API was the source of the
+ * «съезжает» layout bug on desktop Chrome. */
+@keyframes m57-media-preview-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.m57-media-preview {
+  animation: m57-media-preview-in 150ms ease-out;
+}
+.m57-media-preview > video {
+  animation: m57-media-preview-in 200ms ease-out;
 }
