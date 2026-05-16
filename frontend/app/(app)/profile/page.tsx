@@ -87,11 +87,6 @@ export default function ProfilePage() {
           ) : null}
         </div>
       ) : null}
-
-      <Link href="/settings" className="btn-ghost justify-between text-sm">
-        <span>⚙️ настройки и приглашения</span>
-        <span>→</span>
-      </Link>
     </main>
   );
 }
