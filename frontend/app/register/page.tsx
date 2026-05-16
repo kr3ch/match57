@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { APIError, api, type RegisterPayload } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -41,9 +41,6 @@ export default function RegisterPage() {
 function RegisterWizard() {
   const { me, loading, setMe } = useAuth();
   const router = useRouter();
-  const params = useSearchParams();
-  const ref = params?.get("ref");
-  const refId = ref ? Number(ref) || undefined : undefined;
 
   const [step, setStep] = useState<Step>("agreement");
   const [username, setUsername] = useState("");
@@ -97,7 +94,6 @@ function RegisterWizard() {
       looking_for: lookingFor,
       description: description.trim() || undefined,
       phone: phone.trim() || undefined,
-      ref: refId,
     };
     try {
       const res = await api.register(payload);

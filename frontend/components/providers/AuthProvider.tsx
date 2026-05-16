@@ -76,6 +76,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  // While the user sits on the "banned" screen they cannot open a WebSocket
+  // (backend rejects banned sockets), so realtime events can't tell them
+  // they were unbanned. Poll `/me` every 10s as a fallback: as soon as the
+  // admin clears `banned`, the gate flips back to null and they regain
+  // access without a manual reload.
+  useEffect(() => {
+    if (gate !== "banned") return;
+    const id = window.setInterval(() => {
+      void refresh();
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, [gate, refresh]);
+
   // Auth gate: bounce protected pages to /login when unauthenticated.
   useEffect(() => {
     if (loading) return;
