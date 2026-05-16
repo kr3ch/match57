@@ -45,8 +45,8 @@ export function CookieBanner() {
         <span aria-hidden="true" className="text-base">🍪</span>
         <p className="flex-1 text-ink-100/85">
           Сайт использует <strong className="text-ink-50">cookies для входа</strong>.
-          Без них приложение работать не будет — авторизация, чаты и админка
-          держатся на них.
+          Без них приложение работать не будет — авторизация и чаты держатся
+          на них.
         </p>
         <button
           type="button"
