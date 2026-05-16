@@ -378,6 +378,11 @@ export const api = {
       method: "DELETE",
     });
   },
+  adminRestoreUser(userId: number) {
+    return request<{ ok: true }>(`/api/admin/users/${userId}/restore`, {
+      method: "POST",
+    });
+  },
   adminReports(status: "open" | "resolved" | "banned" | "all" = "open") {
     return request<{ items: ReportRow[] }>(
       `/api/admin/reports?status=${status}`,

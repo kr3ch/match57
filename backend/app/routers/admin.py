@@ -31,17 +31,13 @@ from app.db.models import (
     Conversation,
     Like,
     Match,
-    Message,
-    MessageReaction,
-    MessageRead,
-    Photo,
     Report,
     User,
 )
 from app.deps import CurrentAdminDep, CurrentAdminPinDep, SessionDep
+from app.realtime.manager import manager
 from app.services import admin as svc
 from app.services.profiles import serialize_user
-from app.services.uploads import upload_path
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -158,6 +154,7 @@ async def ban_user(payload: BanIn, admin: CurrentAdminPinDep, db: SessionDep) ->
     if user.is_admin and user.id != admin.id:
         raise HTTPException(status_code=403, detail="cannot_ban_admin")
     user.banned = True
+    await manager.send_to_user(payload.user_id, {"type": "banned"})
     return {"ok": True}
 
 
@@ -172,40 +169,22 @@ async def unban_user(payload: BanIn, _: CurrentAdminPinDep, db: SessionDep) -> d
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: int, _: CurrentAdminPinDep, db: SessionDep) -> dict:
-    from sqlalchemy import delete as sa_delete
-
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user_not_found")
-    # Wipe their uploads on disk.
-    photos = (await db.execute(select(Photo).where(Photo.user_id == user_id))).scalars().all()
-    for p in photos:
-        upload_path(user_id, p.filename).unlink(missing_ok=True)
+    user.deleted = True
+    user.hidden = True
+    await manager.send_to_user(user_id, {"type": "deleted"})
+    return {"ok": True}
 
-    # Explicit cleanup: SQLite foreign key CASCADE was not enabled before,
-    # so orphaned rows may exist. Delete all related records manually.
-    conv_ids = (
-        await db.execute(
-            select(Conversation.id).where(
-                or_(Conversation.user_a_id == user_id, Conversation.user_b_id == user_id)
-            )
-        )
-    ).scalars().all()
-    if conv_ids:
-        await db.execute(sa_delete(MessageReaction).where(MessageReaction.message_id.in_(
-            select(Message.id).where(Message.conversation_id.in_(conv_ids))
-        )))
-        await db.execute(sa_delete(MessageRead).where(MessageRead.message_id.in_(
-            select(Message.id).where(Message.conversation_id.in_(conv_ids))
-        )))
-        await db.execute(sa_delete(Message).where(Message.conversation_id.in_(conv_ids)))
-        await db.execute(sa_delete(Conversation).where(Conversation.id.in_(conv_ids)))
-    await db.execute(sa_delete(Match).where(or_(Match.user_a_id == user_id, Match.user_b_id == user_id)))
-    await db.execute(sa_delete(Like).where(or_(Like.from_user_id == user_id, Like.to_user_id == user_id)))
-    await db.execute(sa_delete(Report).where(or_(Report.from_user_id == user_id, Report.target_user_id == user_id)))
-    await db.execute(sa_delete(Photo).where(Photo.user_id == user_id))
 
-    await db.delete(user)
+@router.post("/users/{user_id}/restore")
+async def restore_user(user_id: int, _: CurrentAdminPinDep, db: SessionDep) -> dict:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    user.deleted = False
+    user.hidden = False
     return {"ok": True}
 
 
