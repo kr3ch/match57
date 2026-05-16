@@ -60,6 +60,8 @@ export default function LikesPage() {
                 <img
                   src={mediaUrl(p.photos[0].user_id, p.photos[0].filename)}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               ) : (

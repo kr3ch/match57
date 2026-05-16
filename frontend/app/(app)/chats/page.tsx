@@ -91,6 +91,8 @@ export default function ChatsPage() {
                       <img
                         src={mediaUrl(c.other.avatar.user_id, c.other.avatar.filename)}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover"
                       />
                     )

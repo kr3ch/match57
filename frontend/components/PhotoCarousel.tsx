@@ -10,16 +10,28 @@ export function PhotoCarousel({
   photos,
   className,
   rounded = "rounded-3xl",
+  /** Force the carousel to fill its parent’s height instead of locking to a
+   * 3:4 aspect ratio. Used on the public profile page where we want the
+   * photo + info overlay to fit in one viewport without scrolling. */
+  fill = false,
+  /** Hint that this carousel is above the fold and worth eagerly
+   * fetching. Adds `fetchpriority="high"` + eager loading to the first
+   * frame so the hero image paints faster on slow networks. */
+  priority = false,
 }: {
   photos: Photo[];
   className?: string;
   rounded?: string;
+  fill?: boolean;
+  priority?: boolean;
 }) {
   const [i, setI] = useState(0);
+  // Either fill the parent or default to a 3:4 portrait box.
+  const sizing = fill ? "absolute inset-0 h-full w-full" : "aspect-[3/4] w-full";
   if (!photos || photos.length === 0) {
     return (
       <div
-        className={`flex aspect-[3/4] items-center justify-center ${rounded} bg-ink-700/40 text-ink-200/60 ${className ?? ""}`}
+        className={`flex items-center justify-center ${sizing} ${rounded} bg-ink-700/40 text-ink-200/60 ${className ?? ""}`}
       >
         нет фото
       </div>
@@ -30,7 +42,7 @@ export function PhotoCarousel({
 
   return (
     <div
-      className={`group relative aspect-[3/4] w-full overflow-hidden ${rounded} bg-ink-900 ${className ?? ""}`}
+      className={`group relative overflow-hidden ${sizing} ${rounded} bg-ink-900 ${className ?? ""}`}
     >
       <AnimatePresence initial={false} mode="popLayout">
         <motion.div
@@ -49,6 +61,7 @@ export function PhotoCarousel({
               loop
               muted
               playsInline
+              preload={priority ? "auto" : "metadata"}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
@@ -56,6 +69,11 @@ export function PhotoCarousel({
               src={url}
               alt=""
               draggable={false}
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={priority ? "high" : "auto"}
+              width={photo.width || undefined}
+              height={photo.height || undefined}
               className="h-full w-full select-none object-cover"
             />
           )}

@@ -63,6 +63,8 @@ export default function MatchesPage() {
                     <img
                       src={mediaUrl(photo.user_id, photo.filename)}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   )
