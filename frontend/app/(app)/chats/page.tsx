@@ -82,10 +82,9 @@ export default function ChatsPage() {
                       <video
                         src={mediaUrl(c.other.avatar.user_id, c.other.avatar.filename)}
                         className="h-full w-full object-cover"
-                        autoPlay
-                        loop
                         muted
                         playsInline
+                        preload="metadata"
                       />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
