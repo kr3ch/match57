@@ -113,6 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   if (!loading && gate === "deleted") {
+    const handleReregister = async () => {
+      await api.logout().catch(() => {});
+      setGate(null);
+      window.location.href = "/register";
+    };
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="glass max-w-sm p-8 text-center">
@@ -124,12 +129,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             Ваш аккаунт был удалён администратором. Зарегистрируйтесь заново и
             не пишите ерунду в анкете.
           </p>
-          <a
-            href="/register"
-            className="btn-primary mt-6 inline-block"
+          <button
+            type="button"
+            onClick={handleReregister}
+            className="btn-primary mt-6"
           >
             Зарегистрироваться
-          </a>
+          </button>
         </div>
       </div>
     );

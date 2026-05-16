@@ -70,6 +70,24 @@ function EditProfile() {
   }
 
   async function uploadFile(file: File) {
+    if (file.type.startsWith("video/")) {
+      const ok = await new Promise<boolean>((resolve) => {
+        const v = document.createElement("video");
+        v.preload = "metadata";
+        v.onloadedmetadata = () => {
+          URL.revokeObjectURL(v.src);
+          if (v.duration > 30) {
+            push({ title: "Слишком длинное", body: "Видео должно быть не дольше 30 секунд" });
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        };
+        v.onerror = () => { URL.revokeObjectURL(v.src); resolve(true); };
+        v.src = URL.createObjectURL(file);
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const r = await api.addPhoto(file);
