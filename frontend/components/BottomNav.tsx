@@ -107,7 +107,7 @@ export function BottomNav() {
                     animate={{ opacity: 1, y: -22, scale: 1 }}
                     exit={{ opacity: 0, y: -38, scale: 0.95 }}
                     transition={{ duration: 0.45, ease: "easeOut" }}
-                    className="pointer-events-none absolute -top-2 right-1 select-none rounded-full bg-ember-500/90 px-2 py-0.5 text-[10px] font-semibold tracking-normal text-ember-50 shadow-[0_4px_20px_rgba(244,134,90,0.55)] ring-1 ring-ember-200/60"
+                    className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 select-none rounded-full bg-ember-500/90 px-2 py-0.5 text-[10px] font-semibold tracking-normal text-ember-50 shadow-[0_4px_20px_rgba(244,134,90,0.55)] ring-1 ring-ember-200/60"
                   >
                     +1
                   </motion.span>
