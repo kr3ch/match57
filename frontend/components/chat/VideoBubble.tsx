@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { VolumeControl } from "./VolumeControl";
+
 /**
  * Chat video bubble with a fully custom overlay — we never render the
  * browser's default controls (which look out of place on iOS / Chrome).
@@ -256,15 +258,17 @@ export function VideoBubble({ src, isMine }: Props) {
             </button>
             <span>{fmt(current)} / {fmt(duration)}</span>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void toggleFullscreen();
-            }}
-            aria-label={isFullscreen ? "Свернуть" : "Во весь экран"}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 active:scale-95"
-          >
+          <div className="flex items-center gap-1">
+            <VolumeControl mediaRef={videoRef} variant="video" onInteract={revealControls} />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void toggleFullscreen();
+              }}
+              aria-label={isFullscreen ? "Свернуть" : "Во весь экран"}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 active:scale-95"
+            >
             {isFullscreen ? (
               <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                 <path
@@ -279,8 +283,9 @@ export function VideoBubble({ src, isMine }: Props) {
                   fill="currentColor"
                 />
               </svg>
-            )}
-          </button>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

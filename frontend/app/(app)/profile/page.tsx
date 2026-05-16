@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { motion } from "framer-motion";
 
 import { api } from "@/lib/api";
+import { AdminBadge } from "@/components/AdminBadge";
 import { PhotoCarousel } from "@/components/PhotoCarousel";
 import { useAuth } from "@/components/providers/AuthProvider";
 
@@ -21,7 +22,10 @@ export default function ProfilePage() {
     <main className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <span className="label">твой профиль</span>
+          <div className="flex items-center gap-2">
+            <span className="label">твой профиль</span>
+            {me?.is_admin ? <AdminBadge size="xs" label="VERIFIED ADMIN" /> : null}
+          </div>
           <h1 className="display text-4xl sm:text-5xl">
             {profile.name}, {profile.age}
           </h1>
@@ -31,11 +35,6 @@ export default function ProfilePage() {
             {profile.hidden ? (
               <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-rose-200">
                 скрыт
-              </span>
-            ) : null}
-            {me?.is_admin ? (
-              <span className="rounded-full bg-gold-100/10 px-2 py-0.5 text-gold-200">
-                админ
               </span>
             ) : null}
           </div>
