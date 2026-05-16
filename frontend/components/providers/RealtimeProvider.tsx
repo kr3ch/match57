@@ -33,7 +33,8 @@ export type WSEvent =
     }
   | { type: "banned" }
   | { type: "unbanned" }
-  | { type: "deleted" };
+  | { type: "deleted" }
+  | { type: "restored" };
 
 type Listener = (e: WSEvent) => void;
 
