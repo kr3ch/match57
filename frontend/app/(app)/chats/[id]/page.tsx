@@ -200,7 +200,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         // Keep conv.other.last_seen_at in sync so the header label stays
         // accurate when the peer disconnects mid-chat.
         setConv((prev) =>
-          prev && prev.other.user_id === evt.user_id
+          prev && prev.other && prev.other.user_id === evt.user_id
             ? {
                 ...prev,
                 other: {
@@ -216,7 +216,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }, [subscribe, conversationId, me]);
 
   const otherOnline = useMemo(() => {
-    if (!conv) return false;
+    if (!conv || !conv.other) return false;
     return online.has(conv.other.user_id) || conv.other.online;
   }, [conv, online]);
 
@@ -226,6 +226,15 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   if (!conv) {
     return <p className="text-ink-200/60">Грузим…</p>;
+  }
+
+  if (!conv.other) {
+    return (
+      <main className="flex flex-col items-center gap-4 pt-10 text-center">
+        <p className="text-ink-200/60">Пользователь удалён</p>
+        <a href="/chats" className="btn-ghost">← Назад к чатам</a>
+      </main>
+    );
   }
 
   return (
