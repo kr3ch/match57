@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { VolumeControl } from "./VolumeControl";
+
 function format(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const m = Math.floor(seconds / 60);
@@ -131,6 +133,11 @@ export function VoiceBubble({
           <span>{format(duration)}</span>
         </div>
       </div>
+
+      <VolumeControl
+        mediaRef={ref}
+        variant={isMine ? "voice-mine" : "voice-other"}
+      />
 
       <audio ref={ref} src={src} preload="metadata" className="hidden" />
     </div>

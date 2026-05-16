@@ -79,7 +79,11 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
 
     # Sync admin status for existing users listed in ADMIN_EMAILS.
-    await _sync_admin_emails()
+    try:
+        await _sync_admin_emails()
+    except Exception:
+        # Never block startup on the admin-sync hook.
+        logger.exception("admin-sync failed")
 
     yield
 

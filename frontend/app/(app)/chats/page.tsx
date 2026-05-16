@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
 import { formatLastSeen, useTicker } from "@/lib/presence";
+import { AdminBadge } from "@/components/AdminBadge";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
 export default function ChatsPage() {
@@ -101,12 +102,15 @@ export default function ChatsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="display text-base">
-                      {c.other.name}
-                      {c.other.age ? `, ${c.other.age}` : ""}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="display truncate text-base">
+                        {c.other.name}
+                        {c.other.age ? `, ${c.other.age}` : ""}
+                      </span>
+                      {c.other.is_admin ? <AdminBadge size="xs" /> : null}
                     </span>
                     {c.last_message_at && (
-                      <span className="text-[11px] text-ink-200/60">
+                      <span className="shrink-0 text-[11px] text-ink-200/60">
                         {timeAgo(c.last_message_at)}
                       </span>
                     )}

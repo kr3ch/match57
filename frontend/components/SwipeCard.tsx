@@ -3,6 +3,7 @@
 import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { useEffect, useRef } from "react";
 import type { PublicProfile } from "@/lib/types";
+import { AdminBadge } from "./AdminBadge";
 import { PhotoCarousel } from "./PhotoCarousel";
 
 type Decision = "like" | "dislike" | "report" | "message";
@@ -102,8 +103,11 @@ export function SwipeCard({
         </motion.div>
         {/* Caption */}
         <div className="absolute inset-x-5 bottom-6 text-white drop-shadow-lg">
-          <div className="display text-3xl leading-tight sm:text-4xl">
-            {profile.name}, {profile.age}
+          <div className="display flex flex-wrap items-center gap-2 text-3xl leading-tight sm:text-4xl">
+            <span>
+              {profile.name}, {profile.age}
+            </span>
+            {profile.is_admin ? <AdminBadge size="sm" /> : null}
           </div>
           {profile.description ? (
             <p className="mt-2 line-clamp-3 text-sm text-white/85">

@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { mediaUrl } from "@/lib/media";
 import { formatLastSeen, useTicker } from "@/lib/presence";
+import { AdminBadge } from "@/components/AdminBadge";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
 export default function MatchesPage() {
@@ -71,8 +72,11 @@ export default function MatchesPage() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="display text-xl">
-                  {m.user.name}, {m.user.age}
+                <div className="display flex items-center gap-2 text-xl">
+                  <span className="truncate">
+                    {m.user.name}, {m.user.age}
+                  </span>
+                  {m.user.is_admin ? <AdminBadge size="xs" /> : null}
                 </div>
                 {m.user.username && (
                   <div className="text-xs text-ink-200/60">@{m.user.username}</div>

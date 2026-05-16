@@ -149,6 +149,7 @@ async def serialize_conversation(
             "last_seen_at": (other.last_seen_at.isoformat() + "Z")
             if (other and other.last_seen_at)
             else None,
+            "is_admin": bool(other.is_admin) if other else False,
         }
         if other
         else None,

@@ -8,6 +8,7 @@ import { APIError, api } from "@/lib/api";
 import type { ChatMessage, ConversationListItem } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
 import { presenceLabel, useTicker } from "@/lib/presence";
+import { AdminBadge } from "@/components/AdminBadge";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ForwardModal } from "@/components/chat/ForwardModal";
 import { Composer } from "@/components/chat/Composer";
@@ -249,9 +250,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           )}
         </Link>
         <Link href={`/user/${conv.other.user_id}`} className="min-w-0 flex-1">
-          <div className="display text-lg leading-tight">
-            {conv.other.name}
-            {conv.other.age ? `, ${conv.other.age}` : ""}
+          <div className="display flex items-center gap-2 text-lg leading-tight">
+            <span className="truncate">
+              {conv.other.name}
+              {conv.other.age ? `, ${conv.other.age}` : ""}
+            </span>
+            {conv.other.is_admin ? <AdminBadge size="xs" /> : null}
           </div>
           <div className="text-[11px] text-ink-200/60">
             {presenceLabel({
