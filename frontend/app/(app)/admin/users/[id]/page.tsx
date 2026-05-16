@@ -119,24 +119,44 @@ export default function AdminUserDetailPage() {
             🚫 забанить
           </button>
         )}
-        <button
-          type="button"
-          className="btn-rose"
-          disabled={busy}
-          onClick={async () => {
-            if (!confirm("Удалить анкету полностью? Это необратимо.")) return;
-            setBusy(true);
-            try {
-              await api.adminDeleteUser(profile.user_id);
-              push({ title: "Анкета удалена" });
-              router.push("/admin/users");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          🗑 удалить
-        </button>
+        {profile.deleted ? (
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await api.adminRestoreUser(profile.user_id);
+                push({ title: "Восстановлен" });
+                setProfile({ ...profile, deleted: false, hidden: false });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            ↩ восстановить
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn-rose"
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm("Удалить анкету?")) return;
+              setBusy(true);
+              try {
+                await api.adminDeleteUser(profile.user_id);
+                push({ title: "Анкета удалена" });
+                setProfile({ ...profile, deleted: true, hidden: true });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            🗑 удалить
+          </button>
+        )}
       </div>
     </main>
   );

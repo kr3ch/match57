@@ -170,6 +170,8 @@ async def login(payload: LoginIn, request: Request, response: Response, db: Sess
         raise HTTPException(status_code=401, detail="invalid_credentials")
     if user.banned:
         raise HTTPException(status_code=403, detail="banned")
+    if user.deleted:
+        raise HTTPException(status_code=403, detail="deleted")
 
     user.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
     # Promote an existing account if the configured admin lists changed since

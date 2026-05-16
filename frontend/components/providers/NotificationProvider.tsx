@@ -82,7 +82,7 @@ function playSound() {
 let _seq = 1;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { me } = useAuth();
+  const { me, refresh } = useAuth();
   const { subscribe } = useRealtime();
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -191,6 +191,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           body: "Откройте «Лайки», чтобы увидеть",
           href: "/likes",
         });
+      } else if (evt.type === "banned" || evt.type === "deleted") {
+        void refresh();
+        return;
       } else if (evt.type === "message" && evt.message?.from_user_id !== me.user_id) {
         const senderName = evt.sender_name || "Кто-то";
         const body =
@@ -210,7 +213,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         });
       }
     });
-  }, [me, subscribe, push]);
+  }, [me, subscribe, push, refresh]);
 
   const value = useMemo(
     () => ({
