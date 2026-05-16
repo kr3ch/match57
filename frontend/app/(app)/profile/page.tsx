@@ -24,7 +24,7 @@ export default function ProfilePage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="label">твой профиль</span>
-            {me?.is_admin ? <AdminBadge size="xs" label="VERIFIED ADMIN" /> : null}
+            {me?.is_admin ? <AdminBadge size="xs" /> : null}
           </div>
           <h1 className="display text-4xl sm:text-5xl">
             {profile.name}, {profile.age}
