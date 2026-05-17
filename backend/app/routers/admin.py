@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Response
+from fastapi import APIRouter, Cookie, Header, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
@@ -51,13 +51,16 @@ class PinIn(BaseModel):
 async def pin_status(
     admin: CurrentAdminDep,
     admin_cookie: Annotated[str | None, Cookie(alias=ADMIN_PIN_COOKIE)] = None,
+    x_admin_pin: Annotated[str | None, Header(alias="X-Admin-Pin")] = None,
 ) -> dict:
     """Lightweight check used by the frontend to decide whether to show the
     PIN modal. ``required: false`` means the server has no PIN configured.
+    Accepts the PIN from either the cookie or the ``X-Admin-Pin`` header so
+    iOS Safari (which often drops cross-site cookies via ITP) keeps working.
     """
     if not ADMIN_PIN:
         return {"ok": True, "required": False, "ttl_minutes": ADMIN_PIN_TTL_MIN}
-    payload = verify_admin_pin(admin_cookie)
+    payload = verify_admin_pin(admin_cookie or x_admin_pin)
     ok = payload is not None and int(payload.get("user_id", 0)) == admin.id
     return {"ok": ok, "required": True, "ttl_minutes": ADMIN_PIN_TTL_MIN}
 
@@ -78,7 +81,16 @@ async def verify_pin(payload: PinIn, admin: CurrentAdminDep, response: Response)
         secure=COOKIE_SECURE,
         path="/",
     )
-    return {"ok": True, "required": True, "ttl_minutes": ADMIN_PIN_TTL_MIN}
+    # Also return the token so iOS Safari clients (which drop cross-site
+    # cookies due to ITP) can stash it in localStorage and resend it as the
+    # ``X-Admin-Pin`` header. The cookie path stays as the default for
+    # cookie-friendly browsers.
+    return {
+        "ok": True,
+        "required": True,
+        "ttl_minutes": ADMIN_PIN_TTL_MIN,
+        "token": token,
+    }
 
 
 @router.post("/lock")

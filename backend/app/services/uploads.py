@@ -24,10 +24,12 @@ from app.config import (
     ALLOWED_MEDIA_MIMES,
     ALLOWED_VIDEO_MIMES,
     MAX_UPLOAD_MB,
+    MAX_VIDEO_UPLOAD_MB,
     UPLOAD_DIR,
 )
 
 MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+MAX_VIDEO_BYTES = MAX_VIDEO_UPLOAD_MB * 1024 * 1024
 EXT_BY_MIME = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -167,14 +169,18 @@ async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
     if mime not in ALLOWED_MEDIA_MIMES:
         raise HTTPException(status_code=415, detail=f"unsupported_mime:{file.content_type}")
     raw = await file.read()
-    if len(raw) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="file_too_large")
     if not raw:
         raise HTTPException(status_code=400, detail="empty_file")
 
     # Use the normalized MIME going forward so all downstream lookups
     # (extension, kind, response payload) see a canonical value.
     kind = _classify(mime)
+    # Asymmetric size cap: video gets a much larger budget than photos
+    # / audio / generic files, because typical phone-shot clips quickly
+    # blow past the 25 MB used for images.
+    size_limit = MAX_VIDEO_BYTES if kind == "video" else MAX_BYTES
+    if len(raw) > size_limit:
+        raise HTTPException(status_code=413, detail="file_too_large")
 
     width: int | None = None
     height: int | None = None

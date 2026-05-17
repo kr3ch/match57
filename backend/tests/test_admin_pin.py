@@ -122,6 +122,37 @@ async def test_pin_lock_clears_cookie(app_with_pin):
 
 
 @pytest.mark.asyncio
+async def test_pin_header_fallback_unlocks(app_with_pin):
+    """iOS Safari drops cross-site cookies via ITP, so the PIN token
+    must also be accepted in an ``X-Admin-Pin`` header. Reproduce that
+    case by stripping the cookie and resending the token in the header.
+    """
+    transport = ASGITransport(app=app_with_pin)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await register_user(client, username="adm")
+        await _make_admin("adm")
+        ok = await client.post("/api/admin/verify-pin", json={"pin": "1234"})
+        assert ok.status_code == 200
+        token = ok.json().get("token")
+        assert isinstance(token, str) and len(token) > 0, "verify-pin must return token"
+
+        # Pretend ITP dropped the cookie.
+        client.cookies.delete("match57_session_admin")
+        # Without header → blocked.
+        blocked = await client.get("/api/admin/stats")
+        assert blocked.status_code == 403
+        # With header → unlocked.
+        ok2 = await client.get("/api/admin/stats", headers={"X-Admin-Pin": token})
+        assert ok2.status_code == 200
+        # pin-status mirrors the same logic.
+        st = await client.get(
+            "/api/admin/pin-status", headers={"X-Admin-Pin": token}
+        )
+        assert st.status_code == 200
+        assert st.json()["ok"] is True
+
+
+@pytest.mark.asyncio
 async def test_pin_non_admin_cannot_verify(app_with_pin):
     transport = ASGITransport(app=app_with_pin)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
