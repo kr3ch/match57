@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 
-import { APIError, AUTH_EXPIRED_EVENT, api } from "@/lib/api";
+import { APIError, AUTH_EXPIRED_EVENT, api, setAuthToken } from "@/lib/api";
 import type { Me } from "@/lib/types";
 
 type AuthGate = "banned" | "deleted" | null;
@@ -84,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onExpired = () => {
+      // The persisted Bearer token clearly isn't accepted anymore (either
+      // expired or the server epoch rotated). Drop it so we don't keep
+      // re-sending a known-bad token on every retry.
+      setAuthToken(null);
       setMe(null);
       setGate(null);
     };
