@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import secrets as _secrets
 from pathlib import Path
+from typing import Literal, cast
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -107,7 +108,17 @@ PROFILE_PHOTO_MAX = 3
 RATE_LIMIT_SECONDS = float(os.environ.get("RATE_LIMIT_SECONDS", "0.25"))
 
 # ─── App-wide ───────────────────────────────────────────────────────────────
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+# Render sets ``RENDER=true`` on every service automatically, so we can use it
+# as a signal that we're in prod and default the frontend origin to the
+# Vercel deployment. Without this auto-detect, a freshly redeployed Render
+# instance with no env vars set would default to ``http://localhost:3000``,
+# which silently degrades cookie security to ``SameSite=lax`` + non-Secure,
+# and the browser then drops the auth cookie on every cross-site fetch from
+# match57.vercel.app → match57.onrender.com — which is exactly the
+# ``not_authenticated`` toast users hit on iOS Safari after login.
+_ON_RENDER = os.environ.get("RENDER", "").lower() in ("true", "1", "yes")
+_DEFAULT_FRONTEND_ORIGIN = "https://match57.vercel.app" if _ON_RENDER else "http://localhost:3000"
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", _DEFAULT_FRONTEND_ORIGIN)
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", FRONTEND_ORIGIN)
 ADMIN_EMAILS = {
     e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
@@ -115,9 +126,7 @@ ADMIN_EMAILS = {
 # Login is now by username (the email-auth flow was removed in trunk). Grant
 # admin by username too — ``ADMIN_USERNAME`` (singular) is accepted as an alias.
 _ADMIN_USERS_RAW = os.environ.get("ADMIN_USERNAMES") or os.environ.get("ADMIN_USERNAME", "")
-ADMIN_USERNAMES = {
-    u.strip().lstrip("@").lower() for u in _ADMIN_USERS_RAW.split(",") if u.strip()
-}
+ADMIN_USERNAMES = {u.strip().lstrip("@").lower() for u in _ADMIN_USERS_RAW.split(",") if u.strip()}
 # Optional second-factor PIN gating every /api/admin/* call. Empty disables
 # the gate so local dev still works without setting anything.
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "").strip()
@@ -129,28 +138,41 @@ DEFAULT_SCHOOL = os.environ.get("DEFAULT_SCHOOL", "57")
 # so a single env var unlocks the standard prod setup. Set CORS_ORIGINS when
 # you need to allow multiple origins (e.g. prod + staging + localhost).
 _CORS_ENV = os.environ.get("CORS_ORIGINS", "").strip()
-CORS_ORIGINS: list[str] = (
-    [o.strip() for o in _CORS_ENV.split(",") if o.strip()]
-    if _CORS_ENV
-    else [FRONTEND_ORIGIN]
+# Defaults cover the three origins that matter in practice: the configured
+# frontend, the canonical Vercel domain, and localhost for dev. De-duped
+# via dict.fromkeys so the order is stable for snapshot tests.
+_DEFAULT_CORS_ORIGINS = list(
+    dict.fromkeys([FRONTEND_ORIGIN, "https://match57.vercel.app", "http://localhost:3000"])
 )
-# Optional regex to match dynamic origins (e.g. Vercel preview URLs like
-# https://match57-git-feature-team.vercel.app). Leave empty to disable.
-CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
+CORS_ORIGINS: list[str] = (
+    [o.strip() for o in _CORS_ENV.split(",") if o.strip()] if _CORS_ENV else _DEFAULT_CORS_ORIGINS
+)
+# Regex match for dynamic origins — covers Vercel preview deploys like
+# https://match57-git-some-branch.vercel.app and
+# https://match57-abc123-projectname.vercel.app. Set CORS_ORIGIN_REGEX=-
+# to disable, or to a custom pattern to override.
+_DEFAULT_CORS_REGEX = r"^https://match57(-[a-z0-9-]+)?\.vercel\.app$"
+_RAW_CORS_REGEX = os.environ.get("CORS_ORIGIN_REGEX", _DEFAULT_CORS_REGEX).strip()
+CORS_ORIGIN_REGEX = "" if _RAW_CORS_REGEX == "-" else _RAW_CORS_REGEX
 
 # Cookie security. Cross-site auth cookies (frontend on Vercel + backend on
-# Render) require SameSite=None + Secure=True, otherwise the browser silently
-# drops the Set-Cookie header. We derive sane defaults from the frontend scheme
-# and let the deployment override via env vars when needed.
+# Render) require SameSite=None + Secure=True, otherwise both Chrome and
+# iOS Safari drop the cookie on cross-origin fetches and every API call
+# after login returns 401 ``not_authenticated``. We derive sane defaults
+# from the frontend scheme and let the deployment override via env vars
+# when needed.
 _cross_site_default = FRONTEND_ORIGIN.startswith("https://") and "localhost" not in FRONTEND_ORIGIN
-COOKIE_SAMESITE = os.environ.get(
+_RAW_SAMESITE = os.environ.get(
     "COOKIE_SAMESITE",
     "none" if _cross_site_default else "lax",
 ).lower()
-COOKIE_SECURE = os.environ.get(
-    "COOKIE_SECURE",
-    "1" if _cross_site_default else "0",
-) == "1"
+if _RAW_SAMESITE not in ("lax", "strict", "none"):
+    _RAW_SAMESITE = "lax"
+# Narrow to the literal Starlette's ``set_cookie(samesite=...)`` expects.
+COOKIE_SAMESITE: Literal["lax", "strict", "none"] = cast(
+    Literal["lax", "strict", "none"], _RAW_SAMESITE
+)
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1" if _cross_site_default else "0") == "1"
 
 # ─── App constants ──────────────────────────────────────────────────────────
 GENDER_CHOICES = ("Парень", "Девушка")
