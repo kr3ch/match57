@@ -81,16 +81,21 @@ async def current_admin(user: Annotated[User, Depends(current_user)]) -> User:
 async def current_admin_pin(
     user: Annotated[User, Depends(current_admin)],
     admin_cookie: Annotated[str | None, Cookie(alias=ADMIN_PIN_COOKIE)] = None,
+    x_admin_pin: Annotated[str | None, Header(alias="X-Admin-Pin")] = None,
 ) -> User:
-    """Admin **plus** a valid PIN cookie issued by ``/api/admin/verify-pin``.
+    """Admin **plus** a valid PIN token issued by ``/api/admin/verify-pin``.
 
-    When ``ADMIN_PIN`` env is unset (e.g. local dev) the gate is open. As soon
-    as it is set, every endpoint guarded by this dep requires the second-factor
-    cookie or returns ``403 admin_pin_required``.
+    The token is accepted from either the ``match57_session_admin`` cookie
+    or the ``X-Admin-Pin`` header. Same dual-track approach as the session
+    JWT (cookie + ``Authorization: Bearer``): iOS Safari with ITP refuses
+    to persist cross-site cookies, so the header fallback is what lets the
+    PIN survive across page navigations on mobile.
+
+    When ``ADMIN_PIN`` env is unset (e.g. local dev) the gate is open.
     """
     if not ADMIN_PIN_VALUE:
         return user
-    payload = verify_admin_pin(admin_cookie)
+    payload = verify_admin_pin(admin_cookie or x_admin_pin)
     if payload is None or int(payload.get("user_id", 0)) != user.id:
         raise HTTPException(status_code=403, detail="admin_pin_required")
     return user
