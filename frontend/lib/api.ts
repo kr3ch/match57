@@ -51,6 +51,39 @@ function _notifyAuthExpired(path: string) {
   window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
 }
 
+// Bearer-token fallback for browsers that refuse to keep our session
+// cookie (iOS Safari with ITP, some embedded WebViews). The token is
+// the same JWT the backend writes into the ``match57_session`` cookie
+// — we just also persist a copy in localStorage and send it as
+// ``Authorization: Bearer ...`` so authentication survives even when
+// the cookie is blocked. Backend accepts either source (see
+// ``backend/app/deps.py::session_payload``).
+const AUTH_TOKEN_KEY = "match57:session_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    else window.localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    /* private mode etc — silently ignore */
+  }
+}
+
+function _authHeaders(): Record<string, string> {
+  const t = getAuthToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 // 429 retry policy. Render's rate limiter clears in 0.7s; we wait a touch
 // longer and retry up to 4 times so legitimate user actions (sending a
 // message right after marking the conversation read, or sending an
@@ -110,6 +143,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      ..._authHeaders(),
       ...(init.headers || {}),
     },
     ...init,
@@ -127,6 +161,7 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
     method: "POST",
     credentials: "include",
     cache: "no-store",
+    headers: { ..._authHeaders() },
     body,
   });
   if (!res.ok) {
@@ -157,20 +192,28 @@ export type LeaderboardRow = {
 
 export const api = {
   // ── auth ─────────────────────────────────────────────────────────
-  register(payload: RegisterPayload) {
-    return request<{ ok: true; user: Me }>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  async register(payload: RegisterPayload) {
+    const res = await request<{ ok: true; user: Me; token?: string }>(
+      "/api/auth/register",
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    if (res.token) setAuthToken(res.token);
+    return res;
   },
-  login(username: string, password: string) {
-    return request<{ ok: true; user: Me }>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
+  async login(username: string, password: string) {
+    const res = await request<{ ok: true; user: Me; token?: string }>(
+      "/api/auth/login",
+      { method: "POST", body: JSON.stringify({ username, password }) },
+    );
+    if (res.token) setAuthToken(res.token);
+    return res;
   },
-  logout() {
-    return request<{ ok: true }>("/api/auth/logout", { method: "POST" });
+  async logout() {
+    try {
+      return await request<{ ok: true }>("/api/auth/logout", { method: "POST" });
+    } finally {
+      setAuthToken(null);
+    }
   },
   me() {
     return request<{ user: Me }>("/api/auth/me");

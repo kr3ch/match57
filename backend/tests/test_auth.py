@@ -76,3 +76,36 @@ async def test_logout(client: AsyncClient):
     assert resp.status_code == 200
     resp2 = await client.get("/api/auth/me")
     assert resp2.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_register_returns_token(client: AsyncClient):
+    """register/login responses must surface the JWT so the frontend can
+    fall back to ``Authorization: Bearer ...`` on browsers that block our
+    cross-site cookie (iOS Safari ITP, embedded WebViews)."""
+    data = await register_user(client)
+    token = data.get("token")
+    assert isinstance(token, str) and token.count(".") == 1
+
+
+@pytest.mark.asyncio
+async def test_bearer_token_authenticates_when_cookie_missing(client: AsyncClient):
+    """The Bearer header alone (cookie jar cleared) must authenticate."""
+    data = await register_user(client)
+    token = data["token"]
+    # Wipe any cookies the AsyncClient picked up so we prove the Bearer
+    # token is what's authenticating us.
+    client.cookies.clear()
+    resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["user"]["name"] == "Test"
+
+
+@pytest.mark.asyncio
+async def test_bearer_with_bogus_token_is_401(client: AsyncClient):
+    client.cookies.clear()
+    resp = await client.get(
+        "/api/auth/me",
+        headers={"Authorization": "Bearer not-a-real-jwt"},
+    )
+    assert resp.status_code == 401
