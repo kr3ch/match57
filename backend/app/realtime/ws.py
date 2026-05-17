@@ -85,8 +85,11 @@ async def _handle_read(
 
 @router.websocket("/api/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
-    cookies = ws.cookies
-    payload = verify_session(cookies.get(SESSION_COOKIE))
+    # iOS Safari (ITP) won't include cross-site cookies on the WS upgrade
+    # request. Accept the same JWT via ``?token=...`` query param as a
+    # fallback (see deps.session_payload for the parallel REST flow).
+    token = ws.cookies.get(SESSION_COOKIE) or ws.query_params.get("token")
+    payload = verify_session(token)
     if payload is None:
         await ws.close(code=1008)
         return

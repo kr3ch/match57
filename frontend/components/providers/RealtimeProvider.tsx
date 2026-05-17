@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 
-import { API_BASE } from "@/lib/api";
+import { API_BASE, getAuthToken } from "@/lib/api";
 
 import { useAuth } from "./AuthProvider";
 
@@ -64,7 +64,13 @@ function wsUrl() {
   if (typeof window === "undefined") return "";
   // WebSocket must hit the backend (Render), not the static frontend host
   // (Vercel). Derive ws(s):// from the same origin used by the REST client.
-  return `${API_BASE.replace(/^http/, "ws")}/api/ws`;
+  const base = `${API_BASE.replace(/^http/, "ws")}/api/ws`;
+  // iOS Safari (ITP) won't send our cross-site session cookie on the WS
+  // upgrade. Append the Bearer token as a query param so the server can
+  // authenticate the socket on those browsers. Harmless on browsers where
+  // cookies do work — backend prefers the cookie when present.
+  const t = getAuthToken();
+  return t ? `${base}?token=${encodeURIComponent(t)}` : base;
 }
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {

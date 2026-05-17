@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
@@ -30,11 +30,29 @@ async def db_session() -> AsyncIterator[AsyncSession]:
             raise
 
 
+def _bearer_from_header(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    parts = authorization.split(None, 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1].strip() or None
+    return None
+
+
 async def session_payload(
     cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
 ) -> dict:
-    """Verified payload from the auth cookie, or 401."""
-    payload = verify_session(cookie)
+    """Verified payload from cookie OR ``Authorization: Bearer <token>``.
+
+    iOS Safari (with ITP) and several mobile in-app browsers refuse to
+    persist cross-site cookies even with ``SameSite=None; Secure``. The
+    Bearer-token fallback lets the frontend stash the same JWT in
+    localStorage and survive on those browsers. Cookie is still checked
+    first so existing sessions on cookie-friendly browsers keep working.
+    """
+    token = cookie or _bearer_from_header(authorization)
+    payload = verify_session(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="not_authenticated")
     return payload
