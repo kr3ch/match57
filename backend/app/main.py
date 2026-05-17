@@ -23,6 +23,7 @@ from app.middleware import NoSharedCacheMiddleware, RateLimitMiddleware  # noqa:
 from app.realtime.ws import router as ws_router  # noqa: E402
 from app.routers.admin import router as admin_router  # noqa: E402
 from app.routers.auth import router as auth_router  # noqa: E402
+from app.routers.blocks import router as blocks_router  # noqa: E402
 from app.routers.browse import router as browse_router  # noqa: E402
 from app.routers.conversations import router as conversations_router  # noqa: E402
 from app.routers.likes import router as likes_router  # noqa: E402
@@ -127,6 +128,7 @@ app.include_router(conversations_router)
 app.include_router(messages_router)
 app.include_router(media_router)
 app.include_router(reports_router)
+app.include_router(blocks_router)
 app.include_router(admin_router)
 app.include_router(ws_router)
 

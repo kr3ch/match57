@@ -101,9 +101,11 @@ async def serialize_conversation(
     online_check,
 ) -> dict[str, Any]:
     from app.db.models import Photo
+    from app.services.blocks import block_status
 
     other_id = conversation_other_user_id(conv, current_user_id)
     other = await db.get(User, other_id)
+    block = await block_status(db, current_user_id, other_id)
     avatar = None
     if other is not None:
         first_photo = await db.scalar(
@@ -157,6 +159,11 @@ async def serialize_conversation(
         "last_message_at": (conv.last_message_at.isoformat() + "Z") if conv.last_message_at else None,
         "unread_count": unread_count or 0,
         "created_at": (conv.created_at.isoformat() + "Z") if conv.created_at else None,
+        # Per-pair block state from the viewer's perspective. Either side
+        # blocking is enough to disable the composer; the booleans let the
+        # UI render distinct copy ("вы заблокированы" vs "вы заблокировали").
+        "i_blocked": block["i_blocked"],
+        "they_blocked": block["they_blocked"],
     }
 
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { APIError, api } from "@/lib/api";
 import type { ChatMessage } from "@/lib/types";
+import { classifyFile } from "@/lib/sendFile";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { useRealtime } from "@/components/providers/RealtimeProvider";
 
@@ -398,17 +399,10 @@ export function Composer({
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
-              // Some browsers (notably iOS Safari for .mov / Android for some
-              // .m4v) hand us a File with empty `type`. Fall back to the
-              // filename extension so the user still gets a video bubble.
-              const name = f.name.toLowerCase();
-              const isImg =
-                f.type.startsWith("image/") ||
-                /\.(jpe?g|png|webp|gif)$/.test(name);
-              const isVid =
-                f.type.startsWith("video/") ||
-                /\.(mp4|webm|mov|m4v|3gp)$/.test(name);
-              await uploadAndSend(f, isImg ? "photo" : isVid ? "video" : "file");
+              // Share the same classifier with the drag-and-drop path so
+              // the paperclip and a desktop drop pick the same bubble
+              // (photo / video / voice / file) for the same file.
+              await uploadAndSend(f, classifyFile(f));
               e.target.value = "";
             }}
           />

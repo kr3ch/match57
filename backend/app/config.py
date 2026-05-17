@@ -61,13 +61,13 @@ SMTP_FROM = os.environ.get("SMTP_FROM", "MATCH 57 <noreply@match57.local>")
 SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") == "1"
 
 # ─── Upload limits / MIME whitelist ─────────────────────────────────────────
-# Default per-file ceiling for images / audio / generic files.
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
-# Larger ceiling for video uploads so chat-messages aren't capped at the same
-# 25 MB used for photos — a few minutes of phone-shot 1080p easily blows past
-# 25 MB. Profile videos are still bounded to 30 s in profile router, which
-# implicitly keeps those small.
-MAX_VIDEO_UPLOAD_MB = int(os.environ.get("MAX_VIDEO_UPLOAD_MB", "150"))
+# Unified ceiling for every chat attachment (image / video / audio / file).
+# 50 MB covers a few minutes of phone-shot 1080p, a long voice note, and
+# anything short of a ridiculous monster .zip / .mov.
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "50"))
+# Kept for backwards-compat with deployments that already set it. When unset
+# we just mirror MAX_UPLOAD_MB so there's a single knob to turn.
+MAX_VIDEO_UPLOAD_MB = int(os.environ.get("MAX_VIDEO_UPLOAD_MB", str(MAX_UPLOAD_MB)))
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_MIMES = {
     "video/webm",
@@ -93,10 +93,23 @@ ALLOWED_AUDIO_MIMES = {
     "audio/wave",
     "audio/x-wav",
 }
+# Whitelist used purely for *classification* (does this MIME look like a
+# photo / video / audio / file?). Unknown MIMEs fall through to ``file`` and
+# are accepted as-is — see ``store_upload``. Keep this list narrow for the
+# known media types so the chat bubble renders them as inline media instead
+# of as a generic download link.
 ALLOWED_FILE_MIMES = {
     "application/pdf",
     "text/plain",
     "application/zip",
+    "application/x-zip-compressed",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "image/gif",
 }
 ALLOWED_MEDIA_MIMES = (
     ALLOWED_IMAGE_MIMES | ALLOWED_VIDEO_MIMES | ALLOWED_AUDIO_MIMES | ALLOWED_FILE_MIMES

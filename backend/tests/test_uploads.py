@@ -65,12 +65,53 @@ async def test_upload_m4a_voice_memo(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_upload_truly_unsupported_still_rejected(client: AsyncClient):
-    """Random binary with no known extension still 415s — we don't want to
-    accidentally accept arbitrary uploads."""
+async def test_upload_arbitrary_file_accepted_as_generic_kind(client: AsyncClient):
+    """Any non-media file is accepted now and stored as ``kind=file`` so chat
+    attachments can be GIFs, .docx, .zip, .pages, etc. without the user
+    hitting a confusing 415. Validation is size-only for the generic kind."""
     await register_user(client, email="bad@test.com", username="baduser")
     resp = await client.post(
         "/api/media/upload",
         files={"file": ("weird.xyz", b"junk", "application/octet-stream")},
     )
-    assert resp.status_code == 415
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["kind"] == "file"
+    assert data["filename"].endswith(".xyz")
+
+
+@pytest.mark.asyncio
+async def test_upload_docx_accepted(client: AsyncClient):
+    """Whitelisted office MIMEs are recognised explicitly and still routed
+    through the generic ``file`` kind (so they render as download links)."""
+    await register_user(client, email="docuser@test.com", username="docuser")
+    resp = await client.post(
+        "/api/media/upload",
+        files={
+            "file": (
+                "report.docx",
+                b"PK\x03\x04fake",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["kind"] == "file"
+    assert data["filename"].endswith(".docx")
+
+
+@pytest.mark.asyncio
+async def test_upload_gif_accepted_as_file_not_resized(client: AsyncClient):
+    """``image/gif`` is intentionally NOT in ALLOWED_IMAGE_MIMES so PIL never
+    touches it (which would kill animation). It ends up as ``kind=file`` and
+    the frontend renders it inline based on the MIME."""
+    await register_user(client, email="gifuser@test.com", username="gifuser")
+    resp = await client.post(
+        "/api/media/upload",
+        files={"file": ("anim.gif", b"GIF89a fake bytes", "image/gif")},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["kind"] == "file"
+    assert data["mime"] == "image/gif"

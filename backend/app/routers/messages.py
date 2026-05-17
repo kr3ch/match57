@@ -12,6 +12,7 @@ from app.db.models import Message, MessageReaction
 from app.deps import CurrentUserDep, SessionDep
 from app.realtime.events import message_event, reaction_event
 from app.realtime.manager import manager
+from app.services.blocks import is_pair_blocked
 from app.services.messaging import (
     conversation_for_user,
     conversation_other_user_id,
@@ -43,6 +44,11 @@ async def send(payload: MessageIn, user: CurrentUserDep, db: SessionDep) -> dict
     conv = await conversation_for_user(db, payload.conversation_id, user.id)
     if conv is None:
         raise HTTPException(status_code=404, detail="conversation_not_found")
+    other_id = conversation_other_user_id(conv, user.id)
+    if await is_pair_blocked(db, user.id, other_id):
+        # Either side blocked the other — refuse with a stable error code
+        # the frontend can map to the "chat is blocked" banner.
+        raise HTTPException(status_code=403, detail="chat_blocked")
     if payload.kind == "text":
         if not payload.body or not payload.body.strip():
             raise HTTPException(status_code=400, detail="empty_body")
@@ -82,7 +88,6 @@ async def send(payload: MessageIn, user: CurrentUserDep, db: SessionDep) -> dict
         reply_to_id=payload.reply_to_id,
     )
     serial = await serialize_message(db, msg, current_user_id=user.id)
-    other_id = conversation_other_user_id(conv, user.id)
     await manager.send_to_user(other_id, message_event(serial, sender_name=user.name))
     await manager.send_to_user(user.id, message_event(serial, sender_name=user.name))
     return {"message": serial}
@@ -141,6 +146,9 @@ async def forward_message(
         raise HTTPException(status_code=404, detail="target_conversation_not_found")
     if target_conv.id == orig_conv.id:
         raise HTTPException(status_code=400, detail="same_conversation")
+    target_other_id = conversation_other_user_id(target_conv, user.id)
+    if await is_pair_blocked(db, user.id, target_other_id):
+        raise HTTPException(status_code=403, detail="chat_blocked")
 
     attachment = None
     if msg.kind != "text" and msg.attachment_filename:

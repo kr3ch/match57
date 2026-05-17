@@ -238,6 +238,31 @@ class MessageRead(Base):
     )
 
 
+class UserBlock(Base):
+    """Directional block: ``blocker_id`` no longer wants any contact with
+    ``blocked_id``. Used to gate message send / receive between a matched
+    pair without unwinding the existing match / conversation rows.
+    """
+
+    __tablename__ = "user_blocks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    blocker_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    blocked_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("blocker_id", "blocked_id", name="uq_user_blocks_pair"),
+        CheckConstraint("blocker_id <> blocked_id", name="ck_user_blocks_distinct"),
+    )
+
+
 class Report(Base):
     __tablename__ = "reports"
 
@@ -272,4 +297,5 @@ __all__ = [
     "Photo",
     "Report",
     "User",
+    "UserBlock",
 ]
