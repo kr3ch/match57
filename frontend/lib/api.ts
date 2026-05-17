@@ -34,6 +34,23 @@ export class APIError extends Error {
   }
 }
 
+// Paths where a 401 is an expected business outcome (wrong password, not yet
+// logged in) and must NOT trigger a global "session expired" redirect.
+const AUTH_PATHS_NO_GLOBAL_401 = new Set([
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/me",
+  "/api/auth/logout",
+]);
+
+export const AUTH_EXPIRED_EVENT = "match57:auth-expired";
+
+function _notifyAuthExpired(path: string) {
+  if (typeof window === "undefined") return;
+  if (AUTH_PATHS_NO_GLOBAL_401.has(path)) return;
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+}
+
 // 429 retry policy. Render's rate limiter clears in 0.7s; we wait a touch
 // longer and retry up to 4 times so legitimate user actions (sending a
 // message right after marking the conversation read, or sending an
@@ -98,6 +115,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   });
   if (!res.ok) {
+    if (res.status === 401) _notifyAuthExpired(path);
     throw new APIError(res.status, (await _readError(res)) || `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
@@ -112,6 +130,7 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   if (!res.ok) {
+    if (res.status === 401) _notifyAuthExpired(path);
     throw new APIError(res.status, (await _readError(res)) || `HTTP ${res.status}`);
   }
   return (await res.json()) as T;
