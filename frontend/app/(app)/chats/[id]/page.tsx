@@ -381,6 +381,43 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             })}
           </div>
         </Link>
+        <button
+          type="button"
+          aria-label={conv.i_blocked ? "разблокировать" : "заблокировать"}
+          title={conv.i_blocked ? "Разблокировать" : "Заблокировать"}
+          onClick={async () => {
+            if (!conv?.other) return;
+            // Confirm only on block; unblock is harmless.
+            if (
+              !conv.i_blocked &&
+              !window.confirm(
+                `Заблокировать ${conv.other.name}? Вы больше не будете получать сообщения и не сможете ничего отправить. Мэтч сохраняется.`,
+              )
+            )
+              return;
+            try {
+              const r = conv.i_blocked
+                ? await api.unblockUser(conv.other.user_id)
+                : await api.blockUser(conv.other.user_id);
+              setConv((prev) =>
+                prev
+                  ? { ...prev, i_blocked: r.i_blocked, they_blocked: r.they_blocked }
+                  : prev,
+              );
+            } catch (e) {
+              if (e instanceof APIError)
+                push({ title: "Не получилось", body: e.detail });
+            }
+          }}
+          className={`flex h-10 w-10 flex-none items-center justify-center rounded-full border text-base transition ${
+            conv.i_blocked
+              ? "border-ember-400/40 text-ember-200 hover:bg-ember-400/10"
+              : "border-white/10 text-ink-200/80 hover:bg-white/5"
+          }`}
+        >
+          {/* simple bracket icon for blocked, slash for unblock */}
+          <span aria-hidden>{conv.i_blocked ? "⌫" : "⊘"}</span>
+        </button>
       </header>
 
       <div
@@ -417,16 +454,24 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      <Composer
-        conversationId={conversationId}
-        replyTo={reply}
-        onSent={(m) => {
-          setMessages((prev) =>
-            prev.some((x) => x.id === m.id) ? prev : [...prev, m],
-          );
-        }}
-        onClearReply={() => setReply(null)}
-      />
+      {conv.i_blocked || conv.they_blocked ? (
+        <div className="mt-2 rounded-2xl border border-white/10 bg-ink-900/70 px-4 py-3 text-center text-sm text-ink-200/80">
+          {conv.i_blocked
+            ? "Вы заблокировали этого пользователя. Чтобы возобновить переписку, разблокируйте в верхнем правом углу."
+            : "Сообщения невозможны. Пользователь ограничил общение."}
+        </div>
+      ) : (
+        <Composer
+          conversationId={conversationId}
+          replyTo={reply}
+          onSent={(m) => {
+            setMessages((prev) =>
+              prev.some((x) => x.id === m.id) ? prev : [...prev, m],
+            );
+          }}
+          onClearReply={() => setReply(null)}
+        />
+      )}
 
       {forwardMsgId !== null && (
         <ForwardModal

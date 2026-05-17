@@ -1,11 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ChatMessage } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
+import { PhotoLightbox } from "@/components/chat/PhotoLightbox";
 import { VideoBubble } from "@/components/chat/VideoBubble";
 import { VoiceBubble } from "@/components/chat/VoiceBubble";
+
+/** True if a chat file attachment is actually a still / animated image we
+ * want to inline-render instead of showing as a download link (e.g. .gif). */
+function isImageMime(mime: string | undefined | null): boolean {
+  return !!mime && mime.toLowerCase().startsWith("image/");
+}
+
+function prettyBytes(n: number | undefined | null): string | null {
+  if (!n || n <= 0) return null;
+  const units = ["б", "КБ", "МБ", "ГБ"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
+}
 
 const REACTIONS = ["❤️", "😂", "🔥", "😍", "😮", "😢"];
 
@@ -31,6 +50,13 @@ export function MessageBubble({
   onToggleActions: () => void;
 }) {
   const [picker, setPicker] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Close the lightbox if the message is removed (e.g. unsent) while open.
+  useEffect(() => {
+    if (msg.deleted_at) setLightboxOpen(false);
+  }, [msg.deleted_at]);
+
   if (msg.deleted_at) {
     return (
       <div
@@ -71,8 +97,12 @@ export function MessageBubble({
           <img
             src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
             alt=""
-            className="block max-h-80 w-auto rounded-2xl object-cover shadow-card ring-1 ring-white/10"
+            className="block max-h-80 w-auto cursor-zoom-in rounded-2xl object-cover shadow-card ring-1 ring-white/10 transition hover:brightness-105"
             style={{ maxWidth: "min(320px, 70vw)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(true);
+            }}
           />
         ) : msg.kind === "video" && msg.attachment ? (
           <VideoBubble
@@ -86,16 +116,55 @@ export function MessageBubble({
             durationMs={msg.attachment.duration_ms}
           />
         ) : msg.kind === "file" && msg.attachment ? (
-          <a
-            href={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            📎 {msg.attachment.filename}
-          </a>
+          isImageMime(msg.attachment.mime) ? (
+            // GIFs and other oddball image mimes that we still treat as
+            // generic "file" server-side. Render inline so animation plays.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+              alt=""
+              className="block max-h-80 w-auto cursor-zoom-in rounded-2xl object-contain shadow-card ring-1 ring-white/10 transition hover:brightness-105"
+              style={{ maxWidth: "min(320px, 70vw)" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxOpen(true);
+              }}
+            />
+          ) : (
+            <a
+              href={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+              target="_blank"
+              rel="noreferrer"
+              download={msg.attachment.filename}
+              className="flex items-center gap-3 rounded-xl bg-black/10 px-2.5 py-1.5 hover:bg-black/20"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-white/15 text-base">
+                📎
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                  {msg.attachment.filename}
+                </span>
+                {(() => {
+                  const sz = prettyBytes((msg.attachment as { size?: number }).size);
+                  return (
+                    <span className="block text-[11px] opacity-70">
+                      {sz ? `файл • ${sz}` : "скачать"}
+                    </span>
+                  );
+                })()}
+              </span>
+            </a>
+          )
         ) : null}
       </div>
+      {lightboxOpen && msg.attachment && (
+        <PhotoLightbox
+          src={mediaUrl(msg.attachment.user_id, msg.attachment.filename)}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
 
       {msg.reactions.length > 0 && (
         <div className="flex gap-1">

@@ -9,15 +9,21 @@
  */
 export type AttachmentKind = "photo" | "video" | "voice" | "file";
 
-const IMG_RE = /\.(jpe?g|png|webp|gif)$/i;
+// Animated images don't fit the "photo" bubble (which goes through a JPEG
+// resize on the server and loses animation). Route GIFs through the
+// generic "file" kind — the chat bubble renders them inline anyway when
+// the mime starts with image/.
+const STILL_IMG_RE = /\.(jpe?g|png|webp)$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|3gp)$/i;
 const AUD_RE = /\.(mp3|m4a|aac|wav|ogg)$/i;
 
 export function classifyFile(f: File): AttachmentKind {
   const name = f.name.toLowerCase();
-  if (f.type.startsWith("image/") || IMG_RE.test(name)) return "photo";
-  if (f.type.startsWith("video/") || VID_RE.test(name)) return "video";
-  if (f.type.startsWith("audio/") || AUD_RE.test(name)) return "voice";
+  const mime = f.type.toLowerCase();
+  if (mime === "image/gif" || name.endsWith(".gif")) return "file";
+  if (mime.startsWith("image/") || STILL_IMG_RE.test(name)) return "photo";
+  if (mime.startsWith("video/") || VID_RE.test(name)) return "video";
+  if (mime.startsWith("audio/") || AUD_RE.test(name)) return "voice";
   return "file";
 }
 
@@ -32,9 +38,15 @@ export async function uploadAndSendFile(opts: {
 }): Promise<ChatMessage> {
   const { conversationId, file, replyToId, kind } = opts;
   const meta = await api.upload(file);
+  // Prefer the backend's classification — it has the canonical MIME after
+  // normalization (e.g. iPhone .mov reported as octet-stream becomes
+  // video/quicktime). Fall back to client-side classifyFile if the server
+  // didn't return a kind for any reason.
+  const finalKind: AttachmentKind =
+    kind ?? (meta.kind as AttachmentKind) ?? classifyFile(file);
   const r = await api.sendAttachment({
     conversation_id: conversationId,
-    kind: kind ?? classifyFile(file),
+    kind: finalKind,
     filename: meta.filename,
     mime: meta.mime,
     duration_ms: meta.duration_ms ?? undefined,
