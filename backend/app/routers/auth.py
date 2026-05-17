@@ -150,7 +150,11 @@ async def register(payload: RegisterIn, response: Response, db: SessionDep) -> d
 
     token = issue_session(user.id)
     _set_cookie(response, token)
-    return {"ok": True, "user": await serialize_user(db, user, include_phone=True)}
+    return {
+        "ok": True,
+        "user": await serialize_user(db, user, include_phone=True),
+        "token": token,
+    }
 
 
 @router.post("/login")
@@ -179,7 +183,11 @@ async def login(payload: LoginIn, request: Request, response: Response, db: Sess
         user.is_admin = True
     token = issue_session(user.id)
     _set_cookie(response, token)
-    return {"ok": True, "user": await serialize_user(db, user, include_phone=True)}
+    return {
+        "ok": True,
+        "user": await serialize_user(db, user, include_phone=True),
+        "token": token,
+    }
 
 
 @router.post("/logout")
