@@ -15,7 +15,7 @@ from typing import Any
 
 import aiofiles
 from fastapi import HTTPException, UploadFile
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import (
     ALLOWED_AUDIO_MIMES,
@@ -75,8 +75,22 @@ def _sniff_image_size(data: bytes) -> tuple[int | None, int | None]:
 
 
 def _resize_image(data: bytes, mime: str, max_side: int = 1600, quality: int = 82) -> bytes:
+    """Resize a user-uploaded image with EXIF-correct orientation.
+
+    iPhone (and most modern cameras) shoot in the sensor's native
+    orientation and store the intended display rotation in an EXIF
+    ``Orientation`` tag (values 1..8, covering 90/180/270 rotations and
+    horizontal/vertical mirrors). Without ``exif_transpose`` the raw
+    pixel data ends up rotated 90° or mirrored when displayed, because
+    we then save the result without preserving EXIF (so browsers have
+    nothing to undo the rotation with). Apply the transpose so the
+    pixels themselves match the photographer's intent before we save.
+    """
     try:
         with Image.open(io.BytesIO(data)) as im:
+            # Bakes EXIF orientation into the pixel data (and returns a
+            # copy whose EXIF tag has been reset to ``1``/no rotation).
+            im = ImageOps.exif_transpose(im) or im
             im.thumbnail((max_side, max_side))
             buf = io.BytesIO()
             fmt = "WEBP" if mime == "image/webp" else "JPEG" if mime == "image/jpeg" else "PNG"
