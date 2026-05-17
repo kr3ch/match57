@@ -8,6 +8,7 @@ import { APIError, api } from "@/lib/api";
 import type { ChatMessage, ConversationListItem } from "@/lib/types";
 import { mediaUrl } from "@/lib/media";
 import { presenceLabel, useTicker } from "@/lib/presence";
+import { uploadAndSendFile, classifyFile } from "@/lib/sendFile";
 import { AdminBadge } from "@/components/AdminBadge";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ForwardModal } from "@/components/chat/ForwardModal";
@@ -34,6 +35,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [otherTyping, setOtherTyping] = useState(false);
   const [activeActionMsgId, setActiveActionMsgId] = useState<number | null>(null);
   const [forwardMsgId, setForwardMsgId] = useState<number | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [droppingCount, setDroppingCount] = useState(0);
+  const dragDepthRef = useRef(0);
   const typingClearRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
@@ -153,6 +157,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [conversationId]);
 
+  // Prevent the browser from navigating away when the user drops a file
+  // anywhere outside the chat viewport (e.g. on the sticky bottom nav).
+  // Without this, a stray drop opens the dragged image in the same tab.
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      if (!e.dataTransfer?.types?.includes("Files")) return;
+      e.preventDefault();
+    };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
+
   // WebSocket events for this chat.
   useEffect(() => {
     return subscribe((evt) => {
@@ -237,8 +257,84 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     );
   }
 
+  // Drag-and-drop from the OS: drop one or more files anywhere on the chat
+  // viewport to send them as attachments. We track a depth counter because
+  // a single drag event traverses through every nested element’s dragenter
+  // / dragleave on the way in/out — a naive boolean flicker-flickers as the
+  // pointer crosses children.
+  const onDragEnter = (e: React.DragEvent<HTMLElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragActive(true);
+  };
+  const onDragOver = (e: React.DragEvent<HTMLElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragActive(false);
+  };
+  const onDrop = async (e: React.DragEvent<HTMLElement>) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length === 0) return;
+    setDroppingCount((c) => c + files.length);
+    for (const f of files) {
+      try {
+        const msg = await uploadAndSendFile({
+          conversationId,
+          file: f,
+          replyToId: reply?.id,
+          kind: classifyFile(f),
+        });
+        setMessages((prev) =>
+          prev.some((x) => x.id === msg.id) ? prev : [...prev, msg],
+        );
+        setReply(null);
+      } catch (err) {
+        if (err instanceof APIError)
+          push({ title: "Не отправлено", body: err.detail });
+      } finally {
+        setDroppingCount((c) => Math.max(0, c - 1));
+      }
+    }
+  };
+
   return (
-    <main className="flex h-[calc(100dvh-9rem)] sm:h-[calc(100dvh-10rem)] flex-col">
+    <main
+      className="relative flex h-[calc(100dvh-9rem)] sm:h-[calc(100dvh-10rem)] flex-col"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {(dragActive || droppingCount > 0) && (
+        <div
+          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-ember-300/70 bg-ink-950/70 backdrop-blur-sm"
+          aria-hidden
+        >
+          <div className="text-center">
+            <div className="display text-3xl text-ember-200">
+              {droppingCount > 0 ? "загружаем…" : "брось сюда"}
+            </div>
+            <div className="mt-1 text-sm text-ink-200/80">
+              {droppingCount > 0
+                ? `отправляем ${droppingCount} файл${
+                    droppingCount > 1 ? (droppingCount < 5 ? "а" : "ов") : ""
+                  }`
+                : "фото или видео отправится сразу"}
+            </div>
+          </div>
+        </div>
+      )}
       <header className="sticky top-0 z-10 -mx-4 mb-2 flex items-center gap-3 border-b border-white/5 bg-ink-950/85 px-4 py-3 backdrop-blur">
         <Link href="/chats" className="btn-ghost h-10 w-10 justify-center px-0">
           ←

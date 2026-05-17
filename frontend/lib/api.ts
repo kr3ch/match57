@@ -59,6 +59,9 @@ function _notifyAuthExpired(path: string) {
 // the cookie is blocked. Backend accepts either source (see
 // ``backend/app/deps.py::session_payload``).
 const AUTH_TOKEN_KEY = "match57:session_token";
+// Same dual-track trick for the admin PIN second factor — see
+// backend/app/deps.py::current_admin_pin.
+const ADMIN_PIN_TOKEN_KEY = "match57:admin_pin_token";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -79,9 +82,37 @@ export function setAuthToken(token: string | null) {
   }
 }
 
-function _authHeaders(): Record<string, string> {
+export function getAdminPinToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ADMIN_PIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAdminPinToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) window.localStorage.setItem(ADMIN_PIN_TOKEN_KEY, token);
+    else window.localStorage.removeItem(ADMIN_PIN_TOKEN_KEY);
+  } catch {
+    /* private mode etc — silently ignore */
+  }
+}
+
+function _authHeaders(path?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
   const t = getAuthToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  if (t) headers["Authorization"] = `Bearer ${t}`;
+  // Resend the PIN token on every /api/admin/* call so iOS Safari (which
+  // drops the cross-site cookie) stays authenticated against the second
+  // factor across page navigations.
+  if (path && path.startsWith("/api/admin")) {
+    const p = getAdminPinToken();
+    if (p) headers["X-Admin-Pin"] = p;
+  }
+  return headers;
 }
 
 // 429 retry policy. Render's rate limiter clears in 0.7s; we wait a touch
@@ -143,7 +174,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      ..._authHeaders(),
+      ..._authHeaders(path),
       ...(init.headers || {}),
     },
     ...init,
@@ -161,7 +192,7 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
     method: "POST",
     credentials: "include",
     cache: "no-store",
-    headers: { ..._authHeaders() },
+    headers: { ..._authHeaders(path) },
     body,
   });
   if (!res.ok) {
@@ -457,13 +488,21 @@ export const api = {
       "/api/admin/pin-status",
     );
   },
-  adminVerifyPin(pin: string) {
-    return request<{ ok: true; required: boolean; ttl_minutes?: number }>(
-      "/api/admin/verify-pin",
-      { method: "POST", body: JSON.stringify({ pin }) },
-    );
+  async adminVerifyPin(pin: string) {
+    const r = await request<{
+      ok: true;
+      required: boolean;
+      ttl_minutes?: number;
+      token?: string;
+    }>("/api/admin/verify-pin", { method: "POST", body: JSON.stringify({ pin }) });
+    if (r.token) setAdminPinToken(r.token);
+    return r;
   },
-  adminLock() {
-    return request<{ ok: true }>("/api/admin/lock", { method: "POST" });
+  async adminLock() {
+    try {
+      return await request<{ ok: true }>("/api/admin/lock", { method: "POST" });
+    } finally {
+      setAdminPinToken(null);
+    }
   },
 };
