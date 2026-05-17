@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 
-import { APIError, api } from "@/lib/api";
+import { APIError, AUTH_EXPIRED_EVENT, api } from "@/lib/api";
 import type { Me } from "@/lib/types";
 
 type AuthGate = "banned" | "deleted" | null;
@@ -75,6 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
+
+  // Any API call returning 401 (e.g. after Render redeploy invalidates the
+  // server-side session epoch, or the cookie expires) fires the
+  // `match57:auth-expired` window event. We drop local auth state so the
+  // protected-page gate below redirects to /login; otherwise the page would
+  // sit on a permanent "Грузим…" while SWR silently retries 401s forever.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onExpired = () => {
+      setMe(null);
+      setGate(null);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
 
   // While the user sits on a gate screen ("Вы заблокированы" / "Аккаунт
   // удалён") the AuthProvider renders the gate UI in place of children,
