@@ -61,7 +61,13 @@ SMTP_FROM = os.environ.get("SMTP_FROM", "MATCH 57 <noreply@match57.local>")
 SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") == "1"
 
 # ─── Upload limits / MIME whitelist ─────────────────────────────────────────
+# Default per-file ceiling for images / audio / generic files.
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
+# Larger ceiling for video uploads so chat-messages aren't capped at the same
+# 25 MB used for photos — a few minutes of phone-shot 1080p easily blows past
+# 25 MB. Profile videos are still bounded to 30 s in profile router, which
+# implicitly keeps those small.
+MAX_VIDEO_UPLOAD_MB = int(os.environ.get("MAX_VIDEO_UPLOAD_MB", "150"))
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_MIMES = {
     "video/webm",

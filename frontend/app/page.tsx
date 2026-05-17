@@ -10,7 +10,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 const STATS = [
   { kicker: "школа", value: "№57", title: "Калининград" },
   { kicker: "возраст", value: "14+", title: "только свои" },
-  { kicker: "формат", value: "веб", title: "ничего не ставить" },
+  { kicker: "формат", value: "веб", title: "без установки приложения" },
 ];
 
 const STEPS = [
