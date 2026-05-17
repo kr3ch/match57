@@ -421,6 +421,30 @@ export const api = {
     });
   },
 
+  // ── blocks ───────────────────────────────────────────────────────
+  blockUser(targetId: number) {
+    return request<{ ok: true; created: boolean; i_blocked: boolean; they_blocked: boolean }>(
+      `/api/users/${targetId}/block`,
+      { method: "POST" },
+    );
+  },
+  unblockUser(targetId: number) {
+    return request<{ ok: true; removed: boolean; i_blocked: boolean; they_blocked: boolean }>(
+      `/api/users/${targetId}/block`,
+      { method: "DELETE" },
+    );
+  },
+  blockStatus(targetId: number) {
+    return request<{ i_blocked: boolean; they_blocked: boolean }>(
+      `/api/users/${targetId}/block`,
+    );
+  },
+  blockedUsers() {
+    return request<{ items: { user_id: number; name: string; username: string | null }[] }>(
+      `/api/users/blocked`,
+    );
+  },
+
   // ── admin ────────────────────────────────────────────────────────
   adminStats() {
     return request<AdminStatsV2>("/api/admin/stats");

@@ -87,6 +87,10 @@ export type ConversationListItem = {
   } | null;
   unread_count: number;
   last_message_at: string | null;
+  /** Did the viewer block the other side of this pair? */
+  i_blocked?: boolean;
+  /** Did the other side block the viewer? */
+  they_blocked?: boolean;
 };
 
 export type MessageKind = "text" | "voice" | "video" | "photo" | "file";

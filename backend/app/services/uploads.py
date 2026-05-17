@@ -19,17 +19,13 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import (
     ALLOWED_AUDIO_MIMES,
-    ALLOWED_FILE_MIMES,
     ALLOWED_IMAGE_MIMES,
-    ALLOWED_MEDIA_MIMES,
     ALLOWED_VIDEO_MIMES,
     MAX_UPLOAD_MB,
-    MAX_VIDEO_UPLOAD_MB,
     UPLOAD_DIR,
 )
 
 MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-MAX_VIDEO_BYTES = MAX_VIDEO_UPLOAD_MB * 1024 * 1024
 EXT_BY_MIME = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -63,8 +59,10 @@ def _classify(mime: str) -> str:
         return "video"
     if mime in ALLOWED_AUDIO_MIMES:
         return "voice"
-    if mime in ALLOWED_FILE_MIMES:
-        return "file"
+    # Everything else (known whitelisted file types AND every unknown MIME)
+    # is treated as a generic ``file`` attachment — the chat bubble renders
+    # it as a download link with the original filename. This is what makes
+    # "drop a .docx / .gif / .zip into the chat" Just Work.
     return "file"
 
 
@@ -156,18 +154,25 @@ def _mime_from_filename(name: str | None) -> str:
 
 
 async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
-    """Validate the upload + write it to disk under the user's folder."""
+    """Validate the upload + write it to disk under the user's folder.
+
+    Photos / videos / voice are classified by MIME so they render as inline
+    media in the chat bubble. Anything else (gifs, .docx, .zip, weird
+    proprietary stuff) is accepted as a generic ``file`` — we no longer
+    reject on MIME, only on size and emptiness.
+    """
     mime = _normalize_mime(file.content_type)
-    # iPhone Safari + many desktop browsers hand us .mov files as
-    # ``application/octet-stream`` or no MIME at all. Fall back to a
-    # filename-extension lookup so the user-facing UX is "pick file → it
-    # uploads" instead of a confusing 415.
-    if mime not in ALLOWED_MEDIA_MIMES:
+    # If MIME is empty / generic, try to recover the *media* MIME from the
+    # filename so .mov / .m4a / .mp3 still render as video / voice rather
+    # than as a download link.
+    if not mime or mime == "application/octet-stream":
         fallback = _mime_from_filename(file.filename)
-        if fallback in ALLOWED_MEDIA_MIMES:
+        if fallback:
             mime = fallback
-    if mime not in ALLOWED_MEDIA_MIMES:
-        raise HTTPException(status_code=415, detail=f"unsupported_mime:{file.content_type}")
+    if not mime:
+        # Last-resort placeholder so downstream code has *something* to
+        # store; the chat bubble keys off ``kind=file`` anyway.
+        mime = "application/octet-stream"
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="empty_file")
@@ -175,11 +180,7 @@ async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
     # Use the normalized MIME going forward so all downstream lookups
     # (extension, kind, response payload) see a canonical value.
     kind = _classify(mime)
-    # Asymmetric size cap: video gets a much larger budget than photos
-    # / audio / generic files, because typical phone-shot clips quickly
-    # blow past the 25 MB used for images.
-    size_limit = MAX_VIDEO_BYTES if kind == "video" else MAX_BYTES
-    if len(raw) > size_limit:
+    if len(raw) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="file_too_large")
 
     width: int | None = None
@@ -191,7 +192,17 @@ async def store_upload(file: UploadFile, user_id: int) -> dict[str, Any]:
         raw = await loop.run_in_executor(None, _resize_image, raw, mime)
         width, height = await loop.run_in_executor(None, _sniff_image_size, raw)
 
+    # Pick an extension: known MIME → EXT_BY_MIME, otherwise keep whatever
+    # the original filename had (.docx, .pages, ...). This is what lets
+    # arbitrary files survive a download with the correct icon / handler.
     ext = EXT_BY_MIME.get(mime, "")
+    if not ext and file.filename and "." in file.filename:
+        # Take everything from the LAST '.' to the end, lowercase, max 8
+        # chars. Cap is paranoia against weird ``foo.tar.gz.hugename``
+        # corner cases that would otherwise produce a 200-char extension.
+        suffix = ("." + file.filename.rsplit(".", 1)[-1]).lower()
+        if len(suffix) <= 8 and suffix.isascii():
+            ext = suffix
     filename = f"{uuid.uuid4().hex}{ext}"
     user_dir: Path = UPLOAD_DIR / str(user_id)
     user_dir.mkdir(parents=True, exist_ok=True)
