@@ -32,7 +32,8 @@ export type WSEvent =
       removed: boolean;
     }
   | { type: "banned" }
-  | { type: "deleted" };
+  | { type: "deleted" }
+  | { type: "unbanned" };
 
 type Listener = (e: WSEvent) => void;
 

@@ -93,6 +93,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/");
   }, [router]);
 
+  // Poll for unban/restore while on ban/delete screen (WS is disconnected).
+  useEffect(() => {
+    if (!gate) return;
+    const t = setInterval(() => { void refresh(); }, 5000);
+    return () => clearInterval(t);
+  }, [gate, refresh]);
+
   if (!loading && gate === "banned") {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">

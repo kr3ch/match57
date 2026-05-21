@@ -31,6 +31,17 @@ async def stats(db: AsyncSession) -> dict:
     }
 
 
+async def _enrich_names(db: AsyncSession, rows: list[dict]) -> list[dict]:
+    uids = [r["user_id"] for r in rows if r["user_id"]]
+    if not uids:
+        return rows
+    users = (await db.execute(select(User.id, User.name).where(User.id.in_(uids)))).all()
+    name_map = {uid: name for uid, name in users}
+    for r in rows:
+        r["name"] = name_map.get(r["user_id"], "?")
+    return rows
+
+
 async def top_received(db: AsyncSession, limit: int = 10) -> list[dict]:
     stmt = (
         select(Like.to_user_id, func.count(Like.id).label("n"))
@@ -40,7 +51,7 @@ async def top_received(db: AsyncSession, limit: int = 10) -> list[dict]:
         .limit(limit)
     )
     rows = (await db.execute(stmt)).all()
-    return [{"user_id": uid, "count": int(n)} for uid, n in rows]
+    return await _enrich_names(db, [{"user_id": uid, "count": int(n)} for uid, n in rows])
 
 
 async def top_matches(db: AsyncSession, limit: int = 10) -> list[dict]:
@@ -51,19 +62,7 @@ async def top_matches(db: AsyncSession, limit: int = 10) -> list[dict]:
         counts[a] = counts.get(a, 0) + 1
         counts[b] = counts.get(b, 0) + 1
     pairs = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
-    return [{"user_id": uid, "count": n} for uid, n in pairs]
+    return await _enrich_names(db, [{"user_id": uid, "count": n} for uid, n in pairs])
 
 
-async def top_referrers(db: AsyncSession, limit: int = 10) -> list[dict]:
-    stmt = (
-        select(User.ref_user_id, func.count(User.id))
-        .where(User.ref_user_id.is_not(None))
-        .group_by(User.ref_user_id)
-        .order_by(func.count(User.id).desc())
-        .limit(limit)
-    )
-    rows = (await db.execute(stmt)).all()
-    return [{"user_id": uid, "count": int(n)} for uid, n in rows]
-
-
-__all__ = ["stats", "top_matches", "top_received", "top_referrers"]
+__all__ = ["stats", "top_matches", "top_received"]

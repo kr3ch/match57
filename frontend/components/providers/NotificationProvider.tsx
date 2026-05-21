@@ -191,7 +191,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           body: "Откройте «Лайки», чтобы увидеть",
           href: "/likes",
         });
-      } else if (evt.type === "banned" || evt.type === "deleted") {
+      } else if (evt.type === "banned" || evt.type === "deleted" || evt.type === "unbanned") {
         void refresh();
         return;
       } else if (evt.type === "message" && evt.message?.from_user_id !== me.user_id) {

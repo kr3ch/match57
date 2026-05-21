@@ -1,6 +1,5 @@
 "use client";
 
-import useSWR from "swr";
 import { useRouter } from "next/navigation";
 
 import { APIError, api } from "@/lib/api";
@@ -19,7 +18,6 @@ export default function SettingsPage() {
     soundEnabled,
     setSoundEnabled,
   } = useNotifications();
-  const { data: ref } = useSWR("me/referral", () => api.referrals());
 
   return (
     <main className="flex flex-col gap-3">
@@ -64,20 +62,6 @@ export default function SettingsPage() {
         ) : null}
       </section>
 
-      <section className="glass p-4">
-        <h2 className="display text-xl">пригласи друзей</h2>
-        <p className="mt-1 text-sm text-ink-100/80">
-          Поделись ссылкой — пусть твои тоже найдут своих.
-        </p>
-        {ref ? (
-          <div className="mt-4 space-y-2">
-            <LinkBox label="реферальная ссылка" link={ref.ref_link} />
-            <p className="text-xs text-ink-200/60">
-              Приглашённых: {ref.count}
-            </p>
-          </div>
-        ) : null}
-      </section>
 
       <section className="glass p-4">
         <h2 className="display text-xl">видимость</h2>
@@ -163,31 +147,5 @@ function ToggleRow({
         />
       </span>
     </label>
-  );
-}
-
-function LinkBox({ label, link }: { label: string; link: string }) {
-  const { push } = useNotifications();
-  return (
-    <div className="glass-soft flex items-center justify-between gap-2 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="label">{label}</div>
-        <div className="truncate text-sm text-ink-100">{link}</div>
-      </div>
-      <button
-        type="button"
-        className="btn-ghost px-3 py-2 text-xs"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(link);
-            push({ title: "Скопировано" });
-          } catch {
-            push({ title: "Не удалось скопировать" });
-          }
-        }}
-      >
-        копировать
-      </button>
-    </div>
   );
 }

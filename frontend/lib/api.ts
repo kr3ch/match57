@@ -322,15 +322,6 @@ export const api = {
     });
   },
 
-  // ── referrals ────────────────────────────────────────────────────
-  referrals() {
-    return request<{
-      count: number;
-      items: PublicProfile[];
-      ref_link: string;
-    }>("/api/referrals");
-  },
-
   // ── admin ────────────────────────────────────────────────────────
   adminStats() {
     return request<AdminStatsV2>("/api/admin/stats");
@@ -347,18 +338,13 @@ export const api = {
     return request<{ user: Me }>(`/api/admin/users/${userId}`);
   },
   adminTopReceived() {
-    return request<{ items: { user_id: number; count: number }[] }>(
+    return request<{ items: { user_id: number; count: number; name?: string }[] }>(
       "/api/admin/top/received",
     );
   },
   adminTopMatches() {
-    return request<{ items: { user_id: number; count: number }[] }>(
+    return request<{ items: { user_id: number; count: number; name?: string }[] }>(
       "/api/admin/top/matches",
-    );
-  },
-  adminTopReferrers() {
-    return request<{ items: { user_id: number; count: number }[] }>(
-      "/api/admin/top/referrers",
     );
   },
   adminBan(userId: number) {

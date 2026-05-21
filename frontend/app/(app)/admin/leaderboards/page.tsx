@@ -6,20 +6,18 @@ import { useState } from "react";
 
 import { api } from "@/lib/api";
 
-type Tab = "received" | "matches" | "referrers";
+type Tab = "received" | "matches";
 
 const LABEL: Record<Tab, string> = {
   received: "Полученные лайки",
   matches: "Мэтчи",
-  referrers: "Рефереры",
 };
 
 export default function AdminLeaderboardsPage() {
   const [tab, setTab] = useState<Tab>("received");
   const { data, isLoading } = useSWR(["admin/top", tab], () => {
     if (tab === "received") return api.adminTopReceived();
-    if (tab === "matches") return api.adminTopMatches();
-    return api.adminTopReferrers();
+    return api.adminTopMatches();
   });
 
   return (
@@ -58,7 +56,7 @@ export default function AdminLeaderboardsPage() {
                 href={`/admin/users/${row.user_id}`}
                 className="display text-xl underline-offset-2 hover:underline"
               >
-                id:{row.user_id}
+                {row.name || `id:${row.user_id}`}
               </Link>
             </div>
             <div className="text-right">
